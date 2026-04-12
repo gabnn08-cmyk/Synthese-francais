@@ -1,0 +1,261 @@
+:root {
+  --bg: #f4efe7;
+  --panel: rgba(255, 250, 245, 0.88);
+  --panel-strong: #fffdf9;
+  --border: rgba(86, 55, 32, 0.12);
+  --text: #2c2119;
+  --muted: #6f5c4f;
+  --accent: #9f3d22;
+  --success: #1f7a5b;
+  --shadow: 0 20px 45px rgba(79, 48, 27, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Manrope", sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(circle at top left, rgba(211, 122, 71, 0.24), transparent 28%),
+    radial-gradient(circle at right, rgba(255, 229, 184, 0.65), transparent 24%),
+    linear-gradient(135deg, #f8f1e8 0%, #efe6d6 100%);
+}
+
+.page-shell {
+  width: min(1180px, calc(100% - 32px));
+  margin: 32px auto 48px;
+}
+
+.hero {
+  display: grid;
+  gap: 24px;
+  grid-template-columns: minmax(0, 1.6fr) minmax(300px, 0.9fr);
+  align-items: end;
+  margin-bottom: 28px;
+}
+
+.hero h1,
+h2,
+h3 {
+  margin: 0;
+  font-family: "Fraunces", serif;
+  letter-spacing: -0.03em;
+}
+
+.hero h1 {
+  font-size: clamp(2.4rem, 4vw, 4.4rem);
+  line-height: 0.96;
+}
+
+.hero-copy,
+.eyebrow,
+.message,
+.stat-label,
+.summary-list,
+th,
+td,
+label,
+input,
+textarea,
+select,
+button {
+  font-size: 0.98rem;
+}
+
+.eyebrow {
+  margin: 0 0 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.hero-card,
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(14px);
+  border-radius: 24px;
+}
+
+.hero-card,
+.panel {
+  padding: 24px;
+}
+
+.hero-card ul,
+.summary-list {
+  line-height: 1.55;
+}
+
+.panel-header,
+.toolbar,
+.student-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.auth-panel {
+  max-width: 460px;
+}
+
+.stack,
+.dashboard,
+.student-list {
+  display: grid;
+  gap: 14px;
+}
+
+.stats-grid,
+.teacher-grid,
+.summary-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.stats-grid {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.teacher-grid {
+  grid-template-columns: minmax(300px, 0.9fr) minmax(0, 1.5fr);
+}
+
+.summary-grid {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.stat-card {
+  padding: 18px;
+  border-radius: 20px;
+  background: var(--panel-strong);
+  border: 1px solid var(--border);
+}
+
+.stat-value {
+  font-size: 2rem;
+  font-weight: 700;
+  margin: 10px 0 4px;
+}
+
+.stat-label,
+.muted {
+  color: var(--muted);
+}
+
+label {
+  display: grid;
+  gap: 8px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+input,
+textarea,
+select {
+  width: 100%;
+  border-radius: 14px;
+  border: 1px solid rgba(86, 55, 32, 0.18);
+  padding: 12px 14px;
+  font: inherit;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.8);
+}
+
+textarea {
+  min-height: 110px;
+  resize: vertical;
+}
+
+button {
+  border: 0;
+  border-radius: 999px;
+  padding: 12px 18px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.primary-button {
+  background: linear-gradient(135deg, #b74d2d, #8e341c);
+  color: #fff;
+}
+
+.ghost-button {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+
+.success {
+  color: var(--success);
+}
+
+.error {
+  color: #a12828;
+}
+
+.summary-list {
+  margin: 12px 0 0;
+  padding-left: 18px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 14px 10px;
+  border-bottom: 1px solid rgba(86, 55, 32, 0.1);
+  vertical-align: top;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(159, 61, 34, 0.12);
+  color: var(--accent);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.student-button {
+  width: 100%;
+  text-align: left;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.student-button.active {
+  background: rgba(159, 61, 34, 0.12);
+  border-color: rgba(159, 61, 34, 0.3);
+}
+
+.empty-state {
+  color: var(--muted);
+  font-style: italic;
+}
+
+@media (max-width: 900px) {
+  .hero,
+  .teacher-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: synthese-francais-prototype
+    env: python
+    plan: starter
+    startCommand: python app.py
+    region: frankfurt
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: PYTHON_VERSION
+        value: 3.12.3
+      - key: DATA_DIR
+        value: /var/data
+    disk:
+      name: synthese-francais-data
+      mountPath: /var/data
+      sizeGB: 1
