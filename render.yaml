@@ -2,7 +2,8 @@ services:
   - type: web
     name: synthese-francais-prototype
     env: python
-    plan: starter
+    plan: free
+    buildCommand: pip install -r requirements.txt
     startCommand: python app.py
     region: frankfurt
     envVars:
@@ -11,8 +12,4 @@ services:
       - key: PYTHON_VERSION
         value: 3.12.3
       - key: DATA_DIR
-        value: /var/data
-    disk:
-      name: synthese-francais-data
-      mountPath: /var/data
-      sizeGB: 1
+        value: /tmp/prototype-data
