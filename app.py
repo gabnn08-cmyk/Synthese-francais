@@ -329,6 +329,8 @@ class PrototypeHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urlparse(self.path)
+        if parsed.path == "/healthz":
+            return self._send_json({"status": "ok"})
         if parsed.path == "/":
             return self._send_file(STATIC_DIR / "index.html")
         if parsed.path == "/styles.css":
@@ -371,7 +373,21 @@ class PrototypeHandler(BaseHTTPRequestHandler):
                 return self._send_json({"summary": summarize_class()})
             return self._send_json({"summary": public_class_summary()})
         self.send_error(HTTPStatus.NOT_FOUND)
+    def do_HEAD(self):
+        parsed = urlparse(self.path)
 
+        if parsed.path == "/":
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
+            return
+
+        if parsed.path == "/healthz":
+            self.send_response(200)
+            self.end_headers()
+            return
+
+        self.send_error(HTTPStatus.NOT_FOUND)
     def do_POST(self):
         parsed = urlparse(self.path)
         if parsed.path == "/api/login":
