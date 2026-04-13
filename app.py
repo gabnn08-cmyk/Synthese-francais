@@ -451,7 +451,7 @@ class PrototypeHandler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     init_db()
-    host = os.environ.get("HOST", "127.0.0.1")
+    host = "0.0.0.0"
     port = int(os.environ.get("PORT", "8000"))
     server = ThreadingHTTPServer((host, port), PrototypeHandler)
     print(f"Prototype disponible sur http://{host}:{port}")
