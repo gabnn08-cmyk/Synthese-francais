@@ -1,8 +1,11 @@
+import hashlib
+import hmac
 import json
 import os
 import secrets
 import sqlite3
-from datetime import datetime
+import threading
+from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -14,86 +17,179 @@ DATA_DIR = Path(os.environ.get("DATA_DIR", BASE_DIR))
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 DB_PATH = Path(os.environ.get("PROTOTYPE_DB_PATH", DATA_DIR / "prototype.sqlite3"))
 STATIC_DIR = BASE_DIR / "static"
-SESSIONS = {}
+SESSION_DAYS = int(os.environ.get("SESSION_DAYS", "14"))
+COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "auto").lower()
+DEMO_MODE = os.environ.get("DEMO_MODE", "false").lower() in {"1", "true", "yes"}
+ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "prof.francais")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "change-me-before-deploy")
+ADMIN_FULL_NAME = os.environ.get("ADMIN_FULL_NAME", "Professeur de francais")
+WRITE_LOCK = threading.Lock()
+
+
+def utc_now():
+    return datetime.now(timezone.utc)
+
+
+def iso_now():
+    return utc_now().isoformat()
 
 
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20, isolation_level=None)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA journal_mode = WAL")
+    conn.execute("PRAGMA busy_timeout = 5000")
     return conn
 
 
+def hash_password(password):
+    salt = secrets.token_hex(16)
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 260_000)
+    return f"pbkdf2_sha256${salt}${digest.hex()}"
+
+
+def verify_password(password, stored):
+    if not stored:
+        return False
+    if not stored.startswith("pbkdf2_sha256$"):
+        return hmac.compare_digest(password, stored)
+    _, salt, digest = stored.split("$", 2)
+    candidate = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 260_000)
+    return hmac.compare_digest(candidate.hex(), digest)
+
+
+def add_column_if_missing(conn, table, column, definition):
+    columns = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+    if column not in columns:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+
 def init_db():
-    conn = get_db()
-    cur = conn.cursor()
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL,
-            full_name TEXT NOT NULL,
-            role TEXT NOT NULL CHECK(role IN ('teacher', 'student'))
+    with WRITE_LOCK:
+        conn = get_db()
+        conn.execute("BEGIN IMMEDIATE")
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                password TEXT NOT NULL DEFAULT '',
+                password_hash TEXT,
+                full_name TEXT NOT NULL,
+                role TEXT NOT NULL CHECK(role IN ('teacher', 'student')),
+                created_at TEXT NOT NULL DEFAULT ''
+            )
+            """
         )
-        """
+        add_column_if_missing(conn, "users", "password_hash", "TEXT")
+        add_column_if_missing(conn, "users", "created_at", "TEXT NOT NULL DEFAULT ''")
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS evaluations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                student_id INTEGER NOT NULL,
+                title TEXT NOT NULL,
+                evaluation_type TEXT NOT NULL CHECK(evaluation_type IN ('ecrit', 'oral')),
+                subject_area TEXT NOT NULL,
+                evaluation_date TEXT NOT NULL,
+                score REAL NOT NULL CHECK(score >= 0),
+                max_score REAL NOT NULL CHECK(max_score > 0),
+                appreciation TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(student_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS sessions (
+                token TEXT PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                created_at TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+            """
+        )
+        migrate_plain_passwords(conn)
+        ensure_teacher_account(conn)
+        if DEMO_MODE:
+            ensure_demo_students(conn)
+        conn.execute("DELETE FROM sessions WHERE expires_at < ?", (iso_now(),))
+        conn.commit()
+        conn.close()
+
+
+def migrate_plain_passwords(conn):
+    rows = conn.execute("SELECT id, password, password_hash FROM users").fetchall()
+    for row in rows:
+        if row["password"] and not row["password_hash"]:
+            conn.execute(
+                "UPDATE users SET password_hash = ?, password = '' WHERE id = ?",
+                (hash_password(row["password"]), row["id"]),
+            )
+
+
+def ensure_teacher_account(conn):
+    row = conn.execute("SELECT id, password_hash FROM users WHERE username = ?", (ADMIN_USERNAME,)).fetchone()
+    if row:
+        if not row["password_hash"] and ADMIN_PASSWORD:
+            conn.execute("UPDATE users SET password_hash = ? WHERE id = ?", (hash_password(ADMIN_PASSWORD), row["id"]))
+        return
+    conn.execute(
+        "INSERT INTO users (username, password, password_hash, full_name, role, created_at) VALUES (?, '', ?, ?, 'teacher', ?)",
+        (ADMIN_USERNAME, hash_password(ADMIN_PASSWORD), ADMIN_FULL_NAME, iso_now()),
     )
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS evaluations (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_id INTEGER NOT NULL,
-            title TEXT NOT NULL,
-            evaluation_type TEXT NOT NULL CHECK(evaluation_type IN ('ecrit', 'oral')),
-            subject_area TEXT NOT NULL,
-            evaluation_date TEXT NOT NULL,
-            score REAL NOT NULL,
-            max_score REAL NOT NULL,
-            appreciation TEXT NOT NULL,
-            created_at TEXT NOT NULL,
-            FOREIGN KEY(student_id) REFERENCES users(id)
-        )
-        """
-    )
-    cur.execute("SELECT COUNT(*) FROM users")
-    if cur.fetchone()[0] == 0:
-        cur.executemany(
-            "INSERT INTO users (username, password, full_name, role) VALUES (?, ?, ?, ?)",
-            [
-                ("prof.francais", "demo123", "Mme Martin", "teacher"),
-                ("emma.dupont", "eleve123", "Emma Dupont", "student"),
-                ("leo.bernard", "eleve123", "Leo Bernard", "student"),
-                ("jade.moreau", "eleve123", "Jade Moreau", "student"),
-            ],
-        )
-    conn.commit()
-    conn.close()
+
+
+def ensure_demo_students(conn):
+    demo_students = [
+        ("emma.dupont", "eleve123", "Emma Dupont"),
+        ("leo.bernard", "eleve123", "Leo Bernard"),
+        ("jade.moreau", "eleve123", "Jade Moreau"),
+    ]
+    for username, password, full_name in demo_students:
+        exists = conn.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone()
+        if not exists:
+            conn.execute(
+                "INSERT INTO users (username, password, password_hash, full_name, role, created_at) VALUES (?, '', ?, ?, 'student', ?)",
+                (username, hash_password(password), full_name, iso_now()),
+            )
 
 
 def row_to_dict(row):
-    return {key: row[key] for key in row.keys()}
+    data = {key: row[key] for key in row.keys()}
+    data.pop("password", None)
+    data.pop("password_hash", None)
+    return data
 
 
 def get_user_by_id(user_id):
     conn = get_db()
-    cur = conn.cursor()
-    cur.execute("SELECT * FROM users WHERE id = ?", (user_id,))
-    row = cur.fetchone()
+    row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
     conn.close()
     return row_to_dict(row) if row else None
 
 
+def get_login_user(username):
+    conn = get_db()
+    row = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+    conn.close()
+    return row
+
+
 def list_students():
     conn = get_db()
-    cur = conn.cursor()
-    cur.execute("SELECT id, username, full_name FROM users WHERE role = 'student' ORDER BY full_name")
-    rows = [row_to_dict(row) for row in cur.fetchall()]
+    rows = conn.execute(
+        "SELECT id, username, full_name, created_at FROM users WHERE role = 'student' ORDER BY full_name"
+    ).fetchall()
     conn.close()
-    return rows
+    return [row_to_dict(row) for row in rows]
 
 
 def list_evaluations(student_id=None):
     conn = get_db()
-    cur = conn.cursor()
     query = """
         SELECT e.*, u.full_name AS student_name
         FROM evaluations e
@@ -104,10 +200,9 @@ def list_evaluations(student_id=None):
         query += " WHERE e.student_id = ?"
         params.append(student_id)
     query += " ORDER BY e.evaluation_date DESC, e.created_at DESC"
-    cur.execute(query, params)
-    rows = [row_to_dict(row) for row in cur.fetchall()]
+    rows = conn.execute(query, params).fetchall()
     conn.close()
-    return rows
+    return [row_to_dict(row) for row in rows]
 
 
 def mean(values):
@@ -282,7 +377,30 @@ def public_class_summary():
 def parse_body(handler):
     length = int(handler.headers.get("Content-Length", "0"))
     raw = handler.rfile.read(length) if length > 0 else b""
-    return json.loads(raw.decode("utf-8")) if raw else {}
+    try:
+        return json.loads(raw.decode("utf-8")) if raw else {}
+    except json.JSONDecodeError:
+        raise ValueError("JSON invalide.")
+
+
+def clean_text(value, max_length):
+    text = str(value or "").strip()
+    return text[:max_length]
+
+
+def is_secure_request(handler):
+    if COOKIE_SECURE in {"1", "true", "yes"}:
+        return True
+    if COOKIE_SECURE in {"0", "false", "no"}:
+        return False
+    return handler.headers.get("X-Forwarded-Proto", "http") == "https"
+
+
+def session_cookie(token, handler, expires=True):
+    secure = "; Secure" if is_secure_request(handler) else ""
+    max_age = SESSION_DAYS * 24 * 60 * 60 if expires else 0
+    value = token if expires else "deleted"
+    return f"session_token={value}; HttpOnly; Path=/; Max-Age={max_age}; SameSite=Lax{secure}"
 
 
 class PrototypeHandler(BaseHTTPRequestHandler):
@@ -298,10 +416,13 @@ class PrototypeHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _send_file(self, path, content_type="text/html; charset=utf-8"):
+        if not path.exists():
+            return self.send_error(HTTPStatus.NOT_FOUND)
         body = path.read_bytes()
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "public, max-age=300")
         self.end_headers()
         self.wfile.write(body)
 
@@ -314,8 +435,18 @@ class PrototypeHandler(BaseHTTPRequestHandler):
         token = cookie.get("session_token")
         if not token:
             return None
-        session = SESSIONS.get(token.value)
-        return get_user_by_id(session["user_id"]) if session else None
+        conn = get_db()
+        row = conn.execute(
+            """
+            SELECT u.*
+            FROM sessions s
+            JOIN users u ON u.id = s.user_id
+            WHERE s.token = ? AND s.expires_at > ?
+            """,
+            (token.value, iso_now()),
+        ).fetchone()
+        conn.close()
+        return row_to_dict(row) if row else None
 
     def _require_auth(self, role=None):
         user = self._get_session_user()
@@ -323,7 +454,7 @@ class PrototypeHandler(BaseHTTPRequestHandler):
             self._send_json({"error": "Authentification requise."}, HTTPStatus.UNAUTHORIZED)
             return None
         if role and user["role"] != role:
-            self._send_json({"error": "Accès non autorisé."}, HTTPStatus.FORBIDDEN)
+            self._send_json({"error": "Acces non autorise."}, HTTPStatus.FORBIDDEN)
             return None
         return user
 
@@ -360,10 +491,10 @@ class PrototypeHandler(BaseHTTPRequestHandler):
                 return
             student_id = int(parsed.path.rsplit("/", 1)[-1])
             if user["role"] != "teacher" and user["id"] != student_id:
-                return self._send_json({"error": "Accès non autorisé."}, HTTPStatus.FORBIDDEN)
+                return self._send_json({"error": "Acces non autorise."}, HTTPStatus.FORBIDDEN)
             student = get_user_by_id(student_id)
             if not student or student["role"] != "student":
-                return self._send_json({"error": "Élève introuvable."}, HTTPStatus.NOT_FOUND)
+                return self._send_json({"error": "Eleve introuvable."}, HTTPStatus.NOT_FOUND)
             return self._send_json({"summary": summarize_student(student, list_evaluations(student_id))})
         if parsed.path == "/api/class-summary":
             user = self._require_auth()
@@ -373,58 +504,114 @@ class PrototypeHandler(BaseHTTPRequestHandler):
                 return self._send_json({"summary": summarize_class()})
             return self._send_json({"summary": public_class_summary()})
         self.send_error(HTTPStatus.NOT_FOUND)
+
     def do_HEAD(self):
         parsed = urlparse(self.path)
-
-        if parsed.path == "/":
-            self.send_response(200)
-            self.send_header("Content-Type", "text/html")
+        if parsed.path in {"/", "/healthz"}:
+            self.send_response(HTTPStatus.OK)
             self.end_headers()
             return
-
-        if parsed.path == "/healthz":
-            self.send_response(200)
-            self.end_headers()
-            return
-
         self.send_error(HTTPStatus.NOT_FOUND)
+
     def do_POST(self):
         parsed = urlparse(self.path)
-        if parsed.path == "/api/login":
-            payload = parse_body(self)
+        try:
+            if parsed.path == "/api/register":
+                return self.handle_register()
+            if parsed.path == "/api/login":
+                return self.handle_login()
+            if parsed.path == "/api/logout":
+                return self.handle_logout()
+            if parsed.path == "/api/evaluations":
+                return self.handle_create_evaluation()
+        except ValueError as exc:
+            return self._send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+        except sqlite3.IntegrityError:
+            return self._send_json({"error": "Identifiant deja utilise."}, HTTPStatus.CONFLICT)
+        self.send_error(HTTPStatus.NOT_FOUND)
+
+    def handle_register(self):
+        payload = parse_body(self)
+        username = clean_text(payload.get("username"), 80).lower()
+        full_name = clean_text(payload.get("full_name"), 120)
+        password = str(payload.get("password") or "")
+        if len(username) < 3 or len(password) < 8 or len(full_name) < 2:
+            raise ValueError("Nom, identifiant ou mot de passe trop court.")
+        with WRITE_LOCK:
             conn = get_db()
-            cur = conn.cursor()
-            cur.execute("SELECT * FROM users WHERE username = ? AND password = ?", (payload.get("username", "").strip(), payload.get("password", "").strip()))
-            row = cur.fetchone()
+            conn.execute("BEGIN IMMEDIATE")
+            conn.execute(
+                "INSERT INTO users (username, password, password_hash, full_name, role, created_at) VALUES (?, '', ?, ?, 'student', ?)",
+                (username, hash_password(password), full_name, iso_now()),
+            )
+            conn.commit()
             conn.close()
-            if not row:
-                return self._send_json({"error": "Identifiants invalides."}, HTTPStatus.UNAUTHORIZED)
-            user = row_to_dict(row)
-            token = secrets.token_hex(16)
-            SESSIONS[token] = {"user_id": user["id"], "created_at": datetime.utcnow().isoformat()}
-            return self._send_json({"user": user}, headers={"Set-Cookie": f"session_token={token}; HttpOnly; Path=/; SameSite=Lax"})
-        if parsed.path == "/api/logout":
-            cookie_header = self.headers.get("Cookie")
-            if cookie_header:
-                cookie = SimpleCookie()
-                cookie.load(cookie_header)
-                token = cookie.get("session_token")
-                if token:
-                    SESSIONS.pop(token.value, None)
-            return self._send_json({"success": True}, headers={"Set-Cookie": "session_token=deleted; HttpOnly; Path=/; Max-Age=0; SameSite=Lax"})
-        if parsed.path == "/api/evaluations":
-            user = self._require_auth()
-            if not user:
-                return
-            payload = parse_body(self)
-            student_id = int(payload.get("student_id")) if user["role"] == "teacher" else user["id"]
-            required_fields = ["title", "evaluation_type", "subject_area", "evaluation_date", "score", "max_score", "appreciation"]
-            missing = [field for field in required_fields if payload.get(field) in (None, "")]
-            if missing:
-                return self._send_json({"error": f"Champs manquants: {', '.join(missing)}."}, HTTPStatus.BAD_REQUEST)
+        user = get_login_user(username)
+        return self.create_session_response(row_to_dict(user), HTTPStatus.CREATED)
+
+    def handle_login(self):
+        payload = parse_body(self)
+        username = clean_text(payload.get("username"), 80).lower()
+        password = str(payload.get("password") or "")
+        row = get_login_user(username)
+        if not row or not verify_password(password, row["password_hash"] or row["password"]):
+            return self._send_json({"error": "Identifiants invalides."}, HTTPStatus.UNAUTHORIZED)
+        if row["password"] and not row["password_hash"]:
+            with WRITE_LOCK:
+                conn = get_db()
+                conn.execute("UPDATE users SET password_hash = ?, password = '' WHERE id = ?", (hash_password(password), row["id"]))
+                conn.close()
+        return self.create_session_response(row_to_dict(row))
+
+    def create_session_response(self, user, status=HTTPStatus.OK):
+        token = secrets.token_urlsafe(32)
+        expires_at = (utc_now() + timedelta(days=SESSION_DAYS)).isoformat()
+        with WRITE_LOCK:
             conn = get_db()
-            cur = conn.cursor()
-            cur.execute(
+            conn.execute(
+                "INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)",
+                (token, user["id"], iso_now(), expires_at),
+            )
+            conn.close()
+        return self._send_json({"user": user}, status, headers={"Set-Cookie": session_cookie(token, self)})
+
+    def handle_logout(self):
+        cookie_header = self.headers.get("Cookie")
+        if cookie_header:
+            cookie = SimpleCookie()
+            cookie.load(cookie_header)
+            token = cookie.get("session_token")
+            if token:
+                with WRITE_LOCK:
+                    conn = get_db()
+                    conn.execute("DELETE FROM sessions WHERE token = ?", (token.value,))
+                    conn.close()
+        return self._send_json({"success": True}, headers={"Set-Cookie": session_cookie("", self, expires=False)})
+
+    def handle_create_evaluation(self):
+        user = self._require_auth()
+        if not user:
+            return
+        payload = parse_body(self)
+        student_id = int(payload.get("student_id")) if user["role"] == "teacher" else user["id"]
+        required_fields = ["title", "evaluation_type", "subject_area", "evaluation_date", "score", "max_score", "appreciation"]
+        missing = [field for field in required_fields if payload.get(field) in (None, "")]
+        if missing:
+            raise ValueError(f"Champs manquants: {', '.join(missing)}.")
+        evaluation_type = payload["evaluation_type"]
+        if evaluation_type not in {"ecrit", "oral"}:
+            raise ValueError("Type d'evaluation invalide.")
+        score = float(payload["score"])
+        max_score = float(payload["max_score"])
+        if score < 0 or max_score <= 0 or score > max_score:
+            raise ValueError("La note doit etre comprise entre 0 et le bareme.")
+        student = get_user_by_id(student_id)
+        if not student or student["role"] != "student":
+            raise ValueError("Eleve introuvable.")
+        with WRITE_LOCK:
+            conn = get_db()
+            conn.execute("BEGIN IMMEDIATE")
+            conn.execute(
                 """
                 INSERT INTO evaluations (
                     student_id, title, evaluation_type, subject_area,
@@ -433,26 +620,25 @@ class PrototypeHandler(BaseHTTPRequestHandler):
                 """,
                 (
                     student_id,
-                    payload["title"].strip(),
-                    payload["evaluation_type"],
-                    payload["subject_area"].strip(),
-                    payload["evaluation_date"],
-                    float(payload["score"]),
-                    float(payload["max_score"]),
-                    payload["appreciation"].strip(),
-                    datetime.utcnow().isoformat(),
+                    clean_text(payload["title"], 160),
+                    evaluation_type,
+                    clean_text(payload["subject_area"], 120),
+                    clean_text(payload["evaluation_date"], 20),
+                    score,
+                    max_score,
+                    clean_text(payload["appreciation"], 1200),
+                    iso_now()
                 ),
             )
             conn.commit()
             conn.close()
-            return self._send_json({"success": True}, HTTPStatus.CREATED)
-        self.send_error(HTTPStatus.NOT_FOUND)
+        return self._send_json({"success": True}, HTTPStatus.CREATED)
 
 
 if __name__ == "__main__":
     init_db()
-    host = "0.0.0.0"
+    host = os.environ.get("HOST", "0.0.0.0")
     port = int(os.environ.get("PORT", "8000"))
     server = ThreadingHTTPServer((host, port), PrototypeHandler)
-    print(f"Prototype disponible sur http://{host}:{port}")
+    print(f"Application disponible sur http://{host}:{port}")
     server.serve_forever()

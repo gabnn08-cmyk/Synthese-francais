@@ -6,6 +6,15 @@ const state = {
   selectedStudentId: null,
 };
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
 async function api(path, options = {}) {
   const response = await fetch(path, {
     headers: { "Content-Type": "application/json", ...(options.headers || {}) },
@@ -27,8 +36,8 @@ function numberOrDash(value) {
 function renderSummaryCard(title, items) {
   return `
     <article class="stat-card">
-      <p class="eyebrow">${title}</p>
-      <ul class="summary-list">${items.map((item) => `<li>${item}</li>`).join("")}</ul>
+      <p class="eyebrow">${escapeHtml(title)}</p>
+      <ul class="summary-list">${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
     </article>
   `;
 }
@@ -57,6 +66,29 @@ function renderLogin() {
       error.textContent = err.message;
     }
   });
+  const registerForm = document.querySelector("#register-form");
+  if (registerForm) {
+    const registerError = document.querySelector("#register-error");
+    registerForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      registerError.textContent = "";
+      const formData = new FormData(registerForm);
+      try {
+        const data = await api("/api/register", {
+          method: "POST",
+          body: JSON.stringify({
+            full_name: formData.get("full_name"),
+            username: formData.get("username"),
+            password: formData.get("password"),
+          }),
+        });
+        state.user = data.user;
+        await boot();
+      } catch (err) {
+        registerError.textContent = err.message;
+      }
+    });
+  }
 }
 
 function studentFormMarkup(isTeacher = false) {
@@ -67,7 +99,7 @@ function studentFormMarkup(isTeacher = false) {
         Eleve concerne
         <select name="student_id" required>
           <option value="">Choisir un eleve</option>
-          ${state.students.map((student) => `<option value="${student.id}">${student.full_name}</option>`).join("")}
+          ${state.students.map((student) => `<option value="${student.id}">${escapeHtml(student.full_name)}</option>`).join("")}
         </select>
       </label>` : ""}
       <label>
@@ -150,11 +182,11 @@ function evaluationsTable(evaluations) {
         <tbody>
           ${evaluations.map((evaluation) => `
             <tr>
-              <td>${evaluation.evaluation_date}</td>
-              <td><strong>${evaluation.title}</strong><br><span class="muted">${evaluation.subject_area}</span></td>
-              <td><span class="badge">${evaluation.evaluation_type}</span></td>
-              <td>${evaluation.score}/${evaluation.max_score}</td>
-              <td>${evaluation.appreciation}</td>
+              <td>${escapeHtml(evaluation.evaluation_date)}</td>
+              <td><strong>${escapeHtml(evaluation.title)}</strong><br><span class="muted">${escapeHtml(evaluation.subject_area)}</span></td>
+              <td><span class="badge">${escapeHtml(evaluation.evaluation_type)}</span></td>
+              <td>${escapeHtml(evaluation.score)}/${escapeHtml(evaluation.max_score)}</td>
+              <td>${escapeHtml(evaluation.appreciation)}</td>
             </tr>`).join("")}
         </tbody>
       </table>
@@ -175,7 +207,7 @@ async function renderStudentDashboard() {
         <div class="toolbar">
           <div>
             <p class="eyebrow">Espace eleve</p>
-            <h2>${state.user.full_name}</h2>
+            <h2>${escapeHtml(state.user.full_name)}</h2>
             <p class="muted">Saisie personnelle des notes et appreciations de francais.</p>
           </div>
           <button id="logout-button" class="ghost-button">Deconnexion</button>
@@ -194,7 +226,7 @@ async function renderStudentDashboard() {
       </section>
       <section class="panel">
         <p class="eyebrow">Avis general</p>
-        <h3>${summary.general_opinion}</h3>
+        <h3>${escapeHtml(summary.general_opinion)}</h3>
       </section>
       <section class="panel">
         <div class="panel-header">
@@ -202,7 +234,7 @@ async function renderStudentDashboard() {
             <p class="eyebrow">Vue d'ensemble</p>
             <h3>Synthese generale de la classe</h3>
           </div>
-          <span class="badge">${classSummary.students_count} eleves</span>
+          <span class="badge">${escapeHtml(classSummary.students_count)} eleves</span>
         </div>
         <section class="stats-grid">
           <article class="stat-card"><p class="stat-label">Moyenne de classe</p><p class="stat-value">${classSummary.class_average === null ? "-" : `${classSummary.class_average.toFixed(2)}/20`}</p></article>
@@ -214,7 +246,7 @@ async function renderStudentDashboard() {
         </section>
         <section class="stat-card">
           <p class="eyebrow">Avis general sur la classe</p>
-          <h3>${classSummary.general_opinion}</h3>
+          <h3>${escapeHtml(classSummary.general_opinion)}</h3>
         </section>
       </section>
       <section class="panel">
@@ -234,8 +266,8 @@ async function renderStudentDashboard() {
 function teacherStudentButtons() {
   return state.students.map((student) => `
     <button class="student-button ${state.selectedStudentId === student.id ? "active" : ""}" data-student-id="${student.id}">
-      <strong>${student.full_name}</strong><br>
-      <span class="muted">${student.username}</span>
+      <strong>${escapeHtml(student.full_name)}</strong><br>
+      <span class="muted">${escapeHtml(student.username)}</span>
     </button>
   `).join("");
 }
@@ -265,7 +297,7 @@ async function renderTeacherDashboard() {
         <div class="toolbar">
           <div>
             <p class="eyebrow">Espace professeure</p>
-            <h2>${state.user.full_name}</h2>
+            <h2>${escapeHtml(state.user.full_name)}</h2>
             <p class="muted">Vue globale de la classe et lecture des syntheses individuelles.</p>
           </div>
           <button id="logout-button" class="ghost-button">Deconnexion</button>
@@ -293,8 +325,8 @@ async function renderTeacherDashboard() {
         <section class="panel">
           ${selectedSummary ? `
             <div class="student-head">
-              <div><p class="eyebrow">Eleve selectionne</p><h3>${selectedSummary.student.full_name}</h3></div>
-              <span class="badge">${selectedSummary.stats.evaluations_count} evaluations</span>
+              <div><p class="eyebrow">Eleve selectionne</p><h3>${escapeHtml(selectedSummary.student.full_name)}</h3></div>
+              <span class="badge">${escapeHtml(selectedSummary.stats.evaluations_count)} evaluations</span>
             </div>
             <section class="stats-grid">
               <article class="stat-card"><p class="stat-label">Moyenne generale</p><p class="stat-value">${numberOrDash(selectedSummary.stats.average)}</p></article>
@@ -308,7 +340,7 @@ async function renderTeacherDashboard() {
             </section>
             <section class="stat-card">
               <p class="eyebrow">Avis general</p>
-              <h3>${selectedSummary.general_opinion}</h3>
+              <h3>${escapeHtml(selectedSummary.general_opinion)}</h3>
             </section>
             <section class="panel" style="padding:0;box-shadow:none;border:0;background:transparent;">
               <div class="panel-header"><div><p class="eyebrow">Historique</p><h3>Evaluations enregistrees</h3></div></div>
