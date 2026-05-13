@@ -2,8 +2,8 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import secrets
-import sqlite3
 import threading
 from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
@@ -12,10 +12,16 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+import psycopg
+from psycopg.conninfo import conninfo_to_dict, make_conninfo
+from psycopg.rows import dict_row
+
 BASE_DIR = Path(__file__).resolve().parent
-DATA_DIR = Path(os.environ.get("DATA_DIR", BASE_DIR))
-DATA_DIR.mkdir(parents=True, exist_ok=True)
-DB_PATH = Path(os.environ.get("PROTOTYPE_DB_PATH", DATA_DIR / "prototype.sqlite3"))
+DATABASE_URL = os.environ.get("DATABASE_URL")
+DATABASE_SSLMODE = os.environ.get("DATABASE_SSLMODE")
+DATABASE_SCHEMA = os.environ.get("DATABASE_SCHEMA", "public")
+if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", DATABASE_SCHEMA):
+    raise RuntimeError("DATABASE_SCHEMA doit etre un identifiant PostgreSQL simple.")
 STATIC_DIR = BASE_DIR / "static"
 SESSION_DAYS = int(os.environ.get("SESSION_DAYS", "14"))
 COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "auto").lower()
@@ -35,12 +41,25 @@ def iso_now():
 
 
 def get_db():
-    conn = sqlite3.connect(DB_PATH, timeout=20, isolation_level=None)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    conn.execute("PRAGMA journal_mode = WAL")
-    conn.execute("PRAGMA busy_timeout = 5000")
-    return conn
+    if not DATABASE_URL:
+        raise RuntimeError("DATABASE_URL doit pointer vers une base PostgreSQL.")
+    conninfo = database_conninfo()
+    return psycopg.connect(conninfo, row_factory=dict_row, autocommit=True, prepare_threshold=None)
+
+
+def database_conninfo():
+    params = conninfo_to_dict(DATABASE_URL)
+    host = params.get("host", "")
+    if "sslmode" not in params:
+        sslmode = DATABASE_SSLMODE or ("require" if "supabase.co" in host else "prefer")
+        params["sslmode"] = sslmode
+    if "connect_timeout" not in params:
+        params["connect_timeout"] = "10"
+    if "application_name" not in params:
+        params["application_name"] = "synthese-francais"
+    if DATABASE_SCHEMA != "public":
+        params["options"] = f"-c search_path={DATABASE_SCHEMA},public"
+    return make_conninfo(**params)
 
 
 def hash_password(password):
@@ -60,65 +79,79 @@ def verify_password(password, stored):
 
 
 def add_column_if_missing(conn, table, column, definition):
-    columns = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
-    if column not in columns:
+    exists = conn.execute(
+        """
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = %s AND table_name = %s AND column_name = %s
+        """,
+        (DATABASE_SCHEMA, table, column),
+    ).fetchone()
+    if not exists:
         conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
 
 def init_db():
     with WRITE_LOCK:
         conn = get_db()
-        conn.execute("BEGIN IMMEDIATE")
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT UNIQUE NOT NULL,
-                password TEXT NOT NULL DEFAULT '',
-                password_hash TEXT,
-                full_name TEXT NOT NULL,
-                role TEXT NOT NULL CHECK(role IN ('teacher', 'student')),
-                created_at TEXT NOT NULL DEFAULT ''
+        try:
+            conn.execute("BEGIN")
+            if DATABASE_SCHEMA != "public":
+                conn.execute(f"CREATE SCHEMA IF NOT EXISTS {DATABASE_SCHEMA}")
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS users (
+                    id SERIAL PRIMARY KEY,
+                    username TEXT UNIQUE NOT NULL,
+                    password TEXT NOT NULL DEFAULT '',
+                    password_hash TEXT,
+                    full_name TEXT NOT NULL,
+                    role TEXT NOT NULL CHECK(role IN ('teacher', 'student')),
+                    created_at TEXT NOT NULL DEFAULT ''
+                )
+                """
             )
-            """
-        )
-        add_column_if_missing(conn, "users", "password_hash", "TEXT")
-        add_column_if_missing(conn, "users", "created_at", "TEXT NOT NULL DEFAULT ''")
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS evaluations (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                student_id INTEGER NOT NULL,
-                title TEXT NOT NULL,
-                evaluation_type TEXT NOT NULL CHECK(evaluation_type IN ('ecrit', 'oral')),
-                subject_area TEXT NOT NULL,
-                evaluation_date TEXT NOT NULL,
-                score REAL NOT NULL CHECK(score >= 0),
-                max_score REAL NOT NULL CHECK(max_score > 0),
-                appreciation TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                FOREIGN KEY(student_id) REFERENCES users(id) ON DELETE CASCADE
+            add_column_if_missing(conn, "users", "password_hash", "TEXT")
+            add_column_if_missing(conn, "users", "created_at", "TEXT NOT NULL DEFAULT ''")
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS evaluations (
+                    id SERIAL PRIMARY KEY,
+                    student_id INTEGER NOT NULL,
+                    title TEXT NOT NULL,
+                    evaluation_type TEXT NOT NULL CHECK(evaluation_type IN ('ecrit', 'oral')),
+                    subject_area TEXT NOT NULL,
+                    evaluation_date TEXT NOT NULL,
+                    score DOUBLE PRECISION NOT NULL CHECK(score >= 0),
+                    max_score DOUBLE PRECISION NOT NULL CHECK(max_score > 0),
+                    appreciation TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY(student_id) REFERENCES users(id) ON DELETE CASCADE
+                )
+                """
             )
-            """
-        )
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS sessions (
-                token TEXT PRIMARY KEY,
-                user_id INTEGER NOT NULL,
-                created_at TEXT NOT NULL,
-                expires_at TEXT NOT NULL,
-                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS sessions (
+                    token TEXT PRIMARY KEY,
+                    user_id INTEGER NOT NULL,
+                    created_at TEXT NOT NULL,
+                    expires_at TEXT NOT NULL,
+                    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+                )
+                """
             )
-            """
-        )
-        migrate_plain_passwords(conn)
-        ensure_teacher_account(conn)
-        if DEMO_MODE:
-            ensure_demo_students(conn)
-        conn.execute("DELETE FROM sessions WHERE expires_at < ?", (iso_now(),))
-        conn.commit()
-        conn.close()
+            migrate_plain_passwords(conn)
+            ensure_teacher_account(conn)
+            if DEMO_MODE:
+                ensure_demo_students(conn)
+            conn.execute("DELETE FROM sessions WHERE expires_at < %s", (iso_now(),))
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
 
 
 def migrate_plain_passwords(conn):
@@ -126,19 +159,19 @@ def migrate_plain_passwords(conn):
     for row in rows:
         if row["password"] and not row["password_hash"]:
             conn.execute(
-                "UPDATE users SET password_hash = ?, password = '' WHERE id = ?",
+                "UPDATE users SET password_hash = %s, password = '' WHERE id = %s",
                 (hash_password(row["password"]), row["id"]),
             )
 
 
 def ensure_teacher_account(conn):
-    row = conn.execute("SELECT id, password_hash FROM users WHERE username = ?", (ADMIN_USERNAME,)).fetchone()
+    row = conn.execute("SELECT id, password_hash FROM users WHERE username = %s", (ADMIN_USERNAME,)).fetchone()
     if row:
         if not row["password_hash"] and ADMIN_PASSWORD:
-            conn.execute("UPDATE users SET password_hash = ? WHERE id = ?", (hash_password(ADMIN_PASSWORD), row["id"]))
+            conn.execute("UPDATE users SET password_hash = %s WHERE id = %s", (hash_password(ADMIN_PASSWORD), row["id"]))
         return
     conn.execute(
-        "INSERT INTO users (username, password, password_hash, full_name, role, created_at) VALUES (?, '', ?, ?, 'teacher', ?)",
+        "INSERT INTO users (username, password, password_hash, full_name, role, created_at) VALUES (%s, '', %s, %s, 'teacher', %s)",
         (ADMIN_USERNAME, hash_password(ADMIN_PASSWORD), ADMIN_FULL_NAME, iso_now()),
     )
 
@@ -150,16 +183,16 @@ def ensure_demo_students(conn):
         ("jade.moreau", "eleve123", "Jade Moreau"),
     ]
     for username, password, full_name in demo_students:
-        exists = conn.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone()
+        exists = conn.execute("SELECT id FROM users WHERE username = %s", (username,)).fetchone()
         if not exists:
             conn.execute(
-                "INSERT INTO users (username, password, password_hash, full_name, role, created_at) VALUES (?, '', ?, ?, 'student', ?)",
+                "INSERT INTO users (username, password, password_hash, full_name, role, created_at) VALUES (%s, '', %s, %s, 'student', %s)",
                 (username, hash_password(password), full_name, iso_now()),
             )
 
 
 def row_to_dict(row):
-    data = {key: row[key] for key in row.keys()}
+    data = dict(row)
     data.pop("password", None)
     data.pop("password_hash", None)
     return data
@@ -167,14 +200,14 @@ def row_to_dict(row):
 
 def get_user_by_id(user_id):
     conn = get_db()
-    row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    row = conn.execute("SELECT * FROM users WHERE id = %s", (user_id,)).fetchone()
     conn.close()
     return row_to_dict(row) if row else None
 
 
 def get_login_user(username):
     conn = get_db()
-    row = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+    row = conn.execute("SELECT * FROM users WHERE username = %s", (username,)).fetchone()
     conn.close()
     return row
 
@@ -197,10 +230,10 @@ def list_evaluations(student_id=None):
     """
     params = []
     if student_id is not None:
-        query += " WHERE e.student_id = ?"
+        query += " WHERE e.student_id = %s"
         params.append(student_id)
     query += " ORDER BY e.evaluation_date DESC, e.created_at DESC"
-    rows = conn.execute(query, params).fetchall()
+    rows = conn.execute(query, tuple(params)).fetchall()
     conn.close()
     return [row_to_dict(row) for row in rows]
 
@@ -441,7 +474,7 @@ class PrototypeHandler(BaseHTTPRequestHandler):
             SELECT u.*
             FROM sessions s
             JOIN users u ON u.id = s.user_id
-            WHERE s.token = ? AND s.expires_at > ?
+            WHERE s.token = %s AND s.expires_at > %s
             """,
             (token.value, iso_now()),
         ).fetchone()
@@ -526,7 +559,7 @@ class PrototypeHandler(BaseHTTPRequestHandler):
                 return self.handle_create_evaluation()
         except ValueError as exc:
             return self._send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
-        except sqlite3.IntegrityError:
+        except psycopg.IntegrityError:
             return self._send_json({"error": "Identifiant deja utilise."}, HTTPStatus.CONFLICT)
         self.send_error(HTTPStatus.NOT_FOUND)
 
@@ -539,13 +572,18 @@ class PrototypeHandler(BaseHTTPRequestHandler):
             raise ValueError("Nom, identifiant ou mot de passe trop court.")
         with WRITE_LOCK:
             conn = get_db()
-            conn.execute("BEGIN IMMEDIATE")
-            conn.execute(
-                "INSERT INTO users (username, password, password_hash, full_name, role, created_at) VALUES (?, '', ?, ?, 'student', ?)",
-                (username, hash_password(password), full_name, iso_now()),
-            )
-            conn.commit()
-            conn.close()
+            try:
+                conn.execute("BEGIN")
+                conn.execute(
+                    "INSERT INTO users (username, password, password_hash, full_name, role, created_at) VALUES (%s, '', %s, %s, 'student', %s)",
+                    (username, hash_password(password), full_name, iso_now()),
+                )
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                conn.close()
         user = get_login_user(username)
         return self.create_session_response(row_to_dict(user), HTTPStatus.CREATED)
 
@@ -559,7 +597,7 @@ class PrototypeHandler(BaseHTTPRequestHandler):
         if row["password"] and not row["password_hash"]:
             with WRITE_LOCK:
                 conn = get_db()
-                conn.execute("UPDATE users SET password_hash = ?, password = '' WHERE id = ?", (hash_password(password), row["id"]))
+                conn.execute("UPDATE users SET password_hash = %s, password = '' WHERE id = %s", (hash_password(password), row["id"]))
                 conn.close()
         return self.create_session_response(row_to_dict(row))
 
@@ -569,7 +607,7 @@ class PrototypeHandler(BaseHTTPRequestHandler):
         with WRITE_LOCK:
             conn = get_db()
             conn.execute(
-                "INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)",
+                "INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (%s, %s, %s, %s)",
                 (token, user["id"], iso_now(), expires_at),
             )
             conn.close()
@@ -584,7 +622,7 @@ class PrototypeHandler(BaseHTTPRequestHandler):
             if token:
                 with WRITE_LOCK:
                     conn = get_db()
-                    conn.execute("DELETE FROM sessions WHERE token = ?", (token.value,))
+                    conn.execute("DELETE FROM sessions WHERE token = %s", (token.value,))
                     conn.close()
         return self._send_json({"success": True}, headers={"Set-Cookie": session_cookie("", self, expires=False)})
 
@@ -610,28 +648,33 @@ class PrototypeHandler(BaseHTTPRequestHandler):
             raise ValueError("Eleve introuvable.")
         with WRITE_LOCK:
             conn = get_db()
-            conn.execute("BEGIN IMMEDIATE")
-            conn.execute(
-                """
-                INSERT INTO evaluations (
-                    student_id, title, evaluation_type, subject_area,
-                    evaluation_date, score, max_score, appreciation, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    student_id,
-                    clean_text(payload["title"], 160),
-                    evaluation_type,
-                    clean_text(payload["subject_area"], 120),
-                    clean_text(payload["evaluation_date"], 20),
-                    score,
-                    max_score,
-                    clean_text(payload["appreciation"], 1200),
-                    iso_now()
-                ),
-            )
-            conn.commit()
-            conn.close()
+            try:
+                conn.execute("BEGIN")
+                conn.execute(
+                    """
+                    INSERT INTO evaluations (
+                        student_id, title, evaluation_type, subject_area,
+                        evaluation_date, score, max_score, appreciation, created_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        student_id,
+                        clean_text(payload["title"], 160),
+                        evaluation_type,
+                        clean_text(payload["subject_area"], 120),
+                        clean_text(payload["evaluation_date"], 20),
+                        score,
+                        max_score,
+                        clean_text(payload["appreciation"], 1200),
+                        iso_now()
+                    ),
+                )
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                conn.close()
         return self._send_json({"success": True}, HTTPStatus.CREATED)
 
 
