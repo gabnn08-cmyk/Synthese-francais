@@ -1,1 +1,1 @@
-# Ce prototype utilise uniquement la bibliothèque standard Python.
+psycopg[binary]>=3.2,<4

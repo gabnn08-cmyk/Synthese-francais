@@ -8,15 +8,23 @@ Application web legere pour une classe: les eleves creent un compte, saisissent 
 - compte professeure cree au demarrage via variables d'environnement ;
 - mots de passe hashes avec PBKDF2 ;
 - sessions stockees en base, persistantes entre redemarrages ;
-- base SQLite en mode WAL avec verrou d'ecriture applicatif ;
-- donnees utilisateur echappees cote navigateur avant affichage ;
-- configuration Render avec disque persistant.
-
-Cette architecture est suffisante pour une classe d'environ 40 utilisateurs qui saisissent des evaluations ponctuellement. Pour plusieurs classes ou une utilisation intensive, il faudra passer sur PostgreSQL et un serveur applicatif WSGI/ASGI.
+- base PostgreSQL Supabase via `DATABASE_URL` ;
+- schema PostgreSQL prive `app_private` pour eviter l'exposition REST/GraphQL du schema `public` ;
+- connexion compatible Supabase SSL et pooler Supavisor.
 
 ## Lancer en local
 
+Installer les dependances:
+
 ```powershell
+python -m pip install -r requirements.txt
+```
+
+Definir l'URL PostgreSQL, puis lancer l'application:
+
+```powershell
+$env:DATABASE_URL="postgresql://user:password@localhost:5432/synthese_francais"
+$env:DATABASE_SCHEMA="public"
 python app.py
 ```
 
@@ -36,37 +44,79 @@ python app.py
 
 Comptes demo: `emma.dupont`, `leo.bernard`, `jade.moreau` avec le mot de passe `eleve123`.
 
+## Base Supabase
+
+Dans Supabase, creer un projet puis recuperer une connection string depuis `Connect`.
+
+Pour une app web persistante de type Render, Fly.io ou Railway, utiliser de preference:
+
+- `Session pooler` si l'hebergeur n'a pas d'IPv6 fiable ;
+- `Direct connection` si l'hebergeur supporte IPv6 ;
+- `Transaction pooler` seulement pour des environnements serverless ou tres ephemeres.
+
+Variables recommandees en production:
+
+```text
+DATABASE_URL=postgresql://postgres.PROJECT_REF:YOUR_DB_PASSWORD@aws-0-REGION.pooler.supabase.com:5432/postgres
+DATABASE_SSLMODE=require
+DATABASE_SCHEMA=app_private
+COOKIE_SECURE=true
+DEMO_MODE=false
+ADMIN_USERNAME=prof.francais
+ADMIN_FULL_NAME=Professeur de francais
+ADMIN_PASSWORD=mot-de-passe-fort
+```
+
+L'application cree automatiquement le schema et les tables au demarrage. Si tu preferes les creer manuellement, coller [supabase/schema.sql](C:/Users/gabri/Documents/New%20project/supabase/schema.sql) dans le SQL Editor de Supabase.
+
+## Migrer les donnees SQLite existantes
+
+Lancer d'abord l'application une fois avec `DATABASE_URL` pour creer les tables Supabase, puis executer:
+
+```powershell
+$env:DATABASE_URL="postgresql://postgres.PROJECT_REF:YOUR_DB_PASSWORD@aws-0-REGION.pooler.supabase.com:5432/postgres"
+$env:DATABASE_SSLMODE="require"
+$env:DATABASE_SCHEMA="app_private"
+python migrate_sqlite_to_postgres.py
+```
+
+Par defaut, le script lit `prototype.sqlite3` dans le dossier du projet. Pour utiliser un autre fichier:
+
+```powershell
+$env:PROTOTYPE_DB_PATH="C:\chemin\vers\prototype.sqlite3"
+python migrate_sqlite_to_postgres.py
+```
+
 ## Variables importantes
 
+- `DATABASE_URL`: URL de connexion PostgreSQL Supabase, obligatoire
+- `DATABASE_SSLMODE`: mode SSL, `require` recommande pour Supabase
+- `DATABASE_SCHEMA`: schema utilise par l'application, `app_private` recommande sur Supabase
 - `ADMIN_USERNAME`: identifiant professeure, par defaut `prof.francais`
 - `ADMIN_PASSWORD`: mot de passe initial du compte professeure
 - `ADMIN_FULL_NAME`: nom affiche pour le compte professeure
-- `DATA_DIR`: dossier de stockage de `prototype.sqlite3`
 - `COOKIE_SECURE`: `true` en production HTTPS, `false` en local si besoin
 - `DEMO_MODE`: `true` uniquement pour creer les comptes de demonstration
+- `PROTOTYPE_DB_PATH`: chemin de l'ancienne base SQLite, utilise seulement par le script de migration
 
-## Deploiement Render
+## Deploiement Render avec Supabase
 
-Le fichier [render.yaml](C:/Users/gabri/Documents/New%20project/render.yaml) cree:
-
-- un service web Python en region Frankfurt ;
-- un disque persistant de 1 Go monte dans `/var/data` ;
-- les variables necessaires au stockage et aux cookies HTTPS.
+Le fichier [render.yaml](C:/Users/gabri/Documents/New%20project/render.yaml) cree uniquement le service web. La base est fournie par Supabase.
 
 Etapes:
 
-1. Pousser ce dossier dans un depot GitHub.
-2. Dans Render, creer un Blueprint depuis le depot.
-3. Renseigner `ADMIN_PASSWORD` dans les variables d'environnement Render.
-4. Deployer.
-5. Transmettre l'URL aux eleves pour qu'ils creent leur compte.
-
-Important: le plan `starter` est volontaire. Le plan gratuit ne garantit pas un stockage persistant adapte a un usage de classe.
+1. Creer le projet Supabase.
+2. Copier la connection string `Session pooler` depuis Supabase.
+3. Pousser ce dossier dans un depot GitHub.
+4. Dans Render, creer un Blueprint depuis le depot.
+5. Renseigner `DATABASE_URL` et `ADMIN_PASSWORD` dans les variables d'environnement Render.
+6. Deployer.
+7. Verifier `/healthz`, puis tester une connexion professeure.
 
 ## Verification rapide
 
 ```powershell
-python -m py_compile app.py
+python -m py_compile app.py migrate_sqlite_to_postgres.py
 python app.py
 ```
 

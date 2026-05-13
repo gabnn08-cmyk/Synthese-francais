@@ -6,17 +6,17 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: python app.py
     region: frankfurt
-    disk:
-      name: synthese-francais-data
-      mountPath: /var/data
-      sizeGB: 1
     envVars:
       - key: HOST
         value: 0.0.0.0
       - key: PYTHON_VERSION
         value: 3.12.3
-      - key: DATA_DIR
-        value: /var/data
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_SSLMODE
+        value: require
+      - key: DATABASE_SCHEMA
+        value: app_private
       - key: COOKIE_SECURE
         value: "true"
       - key: DEMO_MODE
