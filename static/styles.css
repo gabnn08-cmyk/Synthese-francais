@@ -29,10 +29,7 @@ body {
 }
 
 .hero {
-  display: grid;
-  gap: 24px;
-  grid-template-columns: minmax(0, 1.6fr) minmax(300px, 0.9fr);
-  align-items: end;
+  display: block;
   margin-bottom: 28px;
 }
 
@@ -72,7 +69,6 @@ button {
   font-weight: 700;
 }
 
-.hero-card,
 .panel {
   background: var(--panel);
   border: 1px solid var(--border);
@@ -81,12 +77,9 @@ button {
   border-radius: 8px;
 }
 
-.hero-card,
 .panel {
   padding: 24px;
 }
-
-.hero-card ul,
 .summary-list {
   line-height: 1.55;
 }
@@ -258,7 +251,6 @@ td {
 }
 
 @media (max-width: 900px) {
-  .hero,
   .teacher-grid {
     grid-template-columns: 1fr;
   }
