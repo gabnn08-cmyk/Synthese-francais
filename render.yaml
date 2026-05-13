@@ -1,15 +1,29 @@
 services:
   - type: web
-    name: synthese-francais-prototype
+    name: synthese-francais
     env: python
-    plan: free
+    plan: starter
     buildCommand: pip install -r requirements.txt
     startCommand: python app.py
     region: frankfurt
+    disk:
+      name: synthese-francais-data
+      mountPath: /var/data
+      sizeGB: 1
     envVars:
       - key: HOST
         value: 0.0.0.0
       - key: PYTHON_VERSION
         value: 3.12.3
       - key: DATA_DIR
-        value: /tmp/prototype-data
+        value: /var/data
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: DEMO_MODE
+        value: "false"
+      - key: ADMIN_USERNAME
+        value: prof.francais
+      - key: ADMIN_FULL_NAME
+        value: Professeur de francais
+      - key: ADMIN_PASSWORD
+        sync: false

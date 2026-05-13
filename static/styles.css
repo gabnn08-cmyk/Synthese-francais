@@ -1,13 +1,13 @@
 :root {
-  --bg: #f4efe7;
-  --panel: rgba(255, 250, 245, 0.88);
+  --bg: #f7f8f5;
+  --panel: rgba(255, 255, 255, 0.92);
   --panel-strong: #fffdf9;
-  --border: rgba(86, 55, 32, 0.12);
-  --text: #2c2119;
-  --muted: #6f5c4f;
-  --accent: #9f3d22;
+  --border: rgba(34, 57, 72, 0.14);
+  --text: #20262b;
+  --muted: #596873;
+  --accent: #2e6f73;
   --success: #1f7a5b;
-  --shadow: 0 20px 45px rgba(79, 48, 27, 0.12);
+  --shadow: 0 16px 34px rgba(30, 44, 56, 0.10);
 }
 
 * {
@@ -20,9 +20,7 @@ body {
   font-family: "Manrope", sans-serif;
   color: var(--text);
   background:
-    radial-gradient(circle at top left, rgba(211, 122, 71, 0.24), transparent 28%),
-    radial-gradient(circle at right, rgba(255, 229, 184, 0.65), transparent 24%),
-    linear-gradient(135deg, #f8f1e8 0%, #efe6d6 100%);
+    linear-gradient(135deg, #f7f8f5 0%, #eef4f1 48%, #f8f3e8 100%);
 }
 
 .page-shell {
@@ -31,10 +29,7 @@ body {
 }
 
 .hero {
-  display: grid;
-  gap: 24px;
-  grid-template-columns: minmax(0, 1.6fr) minmax(300px, 0.9fr);
-  align-items: end;
+  display: block;
   margin-bottom: 28px;
 }
 
@@ -43,7 +38,7 @@ h2,
 h3 {
   margin: 0;
   font-family: "Fraunces", serif;
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
 }
 
 .hero h1 {
@@ -74,21 +69,17 @@ button {
   font-weight: 700;
 }
 
-.hero-card,
 .panel {
   background: var(--panel);
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
   backdrop-filter: blur(14px);
-  border-radius: 24px;
+  border-radius: 8px;
 }
 
-.hero-card,
 .panel {
   padding: 24px;
 }
-
-.hero-card ul,
 .summary-list {
   line-height: 1.55;
 }
@@ -134,7 +125,7 @@ button {
 
 .stat-card {
   padding: 18px;
-  border-radius: 20px;
+  border-radius: 8px;
   background: var(--panel-strong);
   border: 1px solid var(--border);
 }
@@ -183,7 +174,7 @@ button {
 }
 
 .primary-button {
-  background: linear-gradient(135deg, #b74d2d, #8e341c);
+  background: #2e6f73;
   color: #fff;
 }
 
@@ -228,7 +219,7 @@ td {
   align-items: center;
   padding: 6px 10px;
   border-radius: 999px;
-  background: rgba(159, 61, 34, 0.12);
+  background: rgba(46, 111, 115, 0.12);
   color: var(--accent);
   font-size: 0.9rem;
   font-weight: 700;
@@ -244,8 +235,14 @@ td {
 }
 
 .student-button.active {
-  background: rgba(159, 61, 34, 0.12);
-  border-color: rgba(159, 61, 34, 0.3);
+  background: rgba(46, 111, 115, 0.12);
+  border-color: rgba(46, 111, 115, 0.32);
+}
+
+.divider {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 22px 0;
 }
 
 .empty-state {
@@ -254,7 +251,6 @@ td {
 }
 
 @media (max-width: 900px) {
-  .hero,
   .teacher-grid {
     grid-template-columns: 1fr;
   }
