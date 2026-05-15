@@ -27,7 +27,7 @@ SESSION_DAYS = int(os.environ.get("SESSION_DAYS", "14"))
 COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "auto").lower()
 DEMO_MODE = os.environ.get("DEMO_MODE", "false").lower() in {"1", "true", "yes"}
 ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "prof.francais")
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "fsFaerEdm8s?")
+ADMIN_PASSWORD = os.environ["ADMIN_PASSWORD"]
 ADMIN_FULL_NAME = os.environ.get("ADMIN_FULL_NAME", "Professeur de francais")
 WRITE_LOCK = threading.Lock()
 
