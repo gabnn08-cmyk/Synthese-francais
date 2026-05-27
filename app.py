@@ -77,12 +77,12 @@ def format_contact_link(value):
 
 def compliance_navigation():
     return (
-        '<nav class="compliance-nav" aria-label="Informations legales">'
+        '<nav class="compliance-nav" aria-label="Informations légales">'
         '<a href="/">Accueil</a>'
-        '<a href="/mentions-legales">Mentions legales</a>'
-        '<a href="/confidentialite">Confidentialite</a>'
+        '<a href="/mentions-legales">Mentions légales</a>'
+        '<a href="/confidentialite">Confidentialité</a>'
         '<a href="/cookies">Cookies</a>'
-        '<a href="/accessibilite">Accessibilite : non conforme</a>'
+        '<a href="/accessibilite">Accessibilité : non conforme</a>'
         "</nav>"
     )
 
@@ -122,7 +122,7 @@ def render_information_page(title, intro, sections):
 def render_mentions_legales():
     site_reference = escape_html(SITE_URL) if SITE_URL else "Adresse du site communiquée au déploiement"
     return render_information_page(
-        "Mentions legales",
+        "Mentions légales",
         "Cette page regroupe les informations d'identification de l'editeur du service, du responsable de publication et de son hebergeur.",
         [
             (
@@ -227,27 +227,27 @@ def render_confidentialite():
 def render_cookies():
     return render_information_page(
         "Politique cookies",
-        "Le site utilise uniquement les traceurs strictement necessaires a son fonctionnement, sauf ajout ulterieur d'outils necessitant un consentement prealable.",
+        "Le site utilise uniquement les traceurs strictement nécessaires a son fonctionnement, sauf ajout ulterieur d'outils necessitant un consentement prealable.",
         [
             (
-                "Cookie necessaire",
+                "Cookie nécessaire",
                 [
-                    f"Un cookie de session d'authentification nomme <code>session_token</code> est depose pour maintenir la connexion pendant une duree maximale de {SESSION_DAYS} jours.",
-                    "Ce cookie est utilise exclusivement pour l'authentification et la securite du service. Il ne sert ni a la publicite ni a la mesure d'audience.",
+                    f"Un cookie de session d'authentification nomme <code>session_token</code> est déposé pour maintenir la connexion pendant une durée maximale de {SESSION_DAYS} jours.",
+                    "Ce cookie est utilise exclusivement pour l'authentification et la sécurité du service. Il ne sert ni a la publicité ni a la mesure d'audience.",
                 ],
             ),
             (
                 "Absence de traceurs marketing",
                 [
-                    "Aucun cookie publicitaire, aucun traceur de reseau social et aucun outil de mesure d'audience soumis au consentement n'est depose par defaut.",
-                    "Si de nouveaux traceurs non strictement necessaires sont ajoutes, un mecanisme de recueil du consentement devra etre mis en place avant leur depot.",
+                    "Aucun cookie publicitaire, aucun traceur de reseau social et aucun outil de mesure d'audience soumis au consentement n'est déposé par défaut.",
+                    "Si de nouveaux traceurs non strictement nécessaires sont ajoutes, un mecanisme de recueil du consentement devra etre mis en place avant leur depot.",
                 ],
             ),
             (
-                "Gestion des preferences",
+                "Gestion des préférences",
                 [
-                    "Comme seuls des traceurs strictement necessaires sont utilises a ce jour, aucune banniere de consentement n'est affichee.",
-                    f"Pour toute question, vous pouvez ecrire a {format_contact_link(LEGAL_CONTACT_EMAIL)}.",
+                    "Comme seuls des traceurs strictement nécessaires sont utilises a ce jour, aucune bannière de consentement n'est affichée.",
+                    f"Pour toute question, vous pouvez écrire a {format_contact_link(LEGAL_CONTACT_EMAIL)}.",
                 ],
             ),
         ],
@@ -256,9 +256,9 @@ def render_cookies():
 
 def render_accessibilite():
     action_plan = (
-        f'Le schema pluriannuel de mise en accessibilite est consultable a l\'adresse <a href="{escape_html(ACCESSIBILITY_MULTIYEAR_PLAN_URL)}">{escape_html(ACCESSIBILITY_MULTIYEAR_PLAN_URL)}</a>.'
+        f'Le schéma pluriannuel de mise en accessibilite est consultable a l\'adresse <a href="{escape_html(ACCESSIBILITY_MULTIYEAR_PLAN_URL)}">{escape_html(ACCESSIBILITY_MULTIYEAR_PLAN_URL)}</a>.'
         if ACCESSIBILITY_MULTIYEAR_PLAN_URL
-        else "Le schema pluriannuel de mise en accessibilite n'est pas encore publie sur ce service."
+        else "Le schéma pluriannuel de mise en accessibilite n'est pas encore publié sur ce service."
     )
     return render_information_page(
         "Accessibilite numerique",
