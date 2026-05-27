@@ -269,6 +269,21 @@ def list_evaluations(student_id=None):
     return [row_to_dict(row) for row in rows]
 
 
+def get_evaluation_by_id(evaluation_id):
+    conn = get_db()
+    row = conn.execute(
+        """
+        SELECT e.*, u.full_name AS student_name
+        FROM evaluations e
+        JOIN users u ON u.id = e.student_id
+        WHERE e.id = %s
+        """,
+        (evaluation_id,),
+    ).fetchone()
+    conn.close()
+    return row_to_dict(row) if row else None
+
+
 def mean(values):
     return round(sum(values) / len(values), 2) if values else None
 
@@ -474,6 +489,42 @@ def clean_text(value, max_length):
     return text[:max_length]
 
 
+def validate_evaluation_payload(payload):
+    required_fields = [
+        "title",
+        "evaluation_type",
+        "trimester",
+        "subject_area",
+        "evaluation_date",
+        "score",
+        "max_score",
+        "appreciation",
+    ]
+    missing = [field for field in required_fields if payload.get(field) in (None, "")]
+    if missing:
+        raise ValueError(f"Champs manquants: {', '.join(missing)}.")
+    evaluation_type = payload["evaluation_type"]
+    if evaluation_type not in {"ecrit", "oral"}:
+        raise ValueError("Type d'evaluation invalide.")
+    trimester = int(payload["trimester"])
+    if trimester not in {1, 2, 3}:
+        raise ValueError("Trimestre invalide.")
+    score = float(payload["score"])
+    max_score = float(payload["max_score"])
+    if score < 0 or max_score <= 0 or score > max_score:
+        raise ValueError("La note doit etre comprise entre 0 et le bareme.")
+    return {
+        "title": clean_text(payload["title"], 160),
+        "evaluation_type": evaluation_type,
+        "trimester": trimester,
+        "subject_area": clean_text(payload["subject_area"], 120),
+        "evaluation_date": clean_text(payload["evaluation_date"], 20),
+        "score": score,
+        "max_score": max_score,
+        "appreciation": clean_text(payload["appreciation"], 1200),
+    }
+
+
 def is_secure_request(handler):
     if COOKIE_SECURE in {"1", "true", "yes"}:
         return True
@@ -617,6 +668,26 @@ class PrototypeHandler(BaseHTTPRequestHandler):
             return self._send_json({"error": "Identifiant deja utilise."}, HTTPStatus.CONFLICT)
         self.send_error(HTTPStatus.NOT_FOUND)
 
+    def do_PUT(self):
+        parsed = urlparse(self.path)
+        try:
+            if parsed.path.startswith("/api/evaluations/"):
+                evaluation_id = int(parsed.path.rsplit("/", 1)[-1])
+                return self.handle_update_evaluation(evaluation_id)
+        except ValueError as exc:
+            return self._send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+        self.send_error(HTTPStatus.NOT_FOUND)
+
+    def do_DELETE(self):
+        parsed = urlparse(self.path)
+        try:
+            if parsed.path.startswith("/api/evaluations/"):
+                evaluation_id = int(parsed.path.rsplit("/", 1)[-1])
+                return self.handle_delete_evaluation(evaluation_id)
+        except ValueError as exc:
+            return self._send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+        self.send_error(HTTPStatus.NOT_FOUND)
+
     def handle_register(self):
         payload = parse_body(self)
         username = clean_text(payload.get("username"), 80).lower()
@@ -686,29 +757,7 @@ class PrototypeHandler(BaseHTTPRequestHandler):
             return
         payload = parse_body(self)
         student_id = int(payload.get("student_id")) if user["role"] in STAFF_ROLES else user["id"]
-        required_fields = [
-            "title",
-            "evaluation_type",
-            "trimester",
-            "subject_area",
-            "evaluation_date",
-            "score",
-            "max_score",
-            "appreciation",
-        ]
-        missing = [field for field in required_fields if payload.get(field) in (None, "")]
-        if missing:
-            raise ValueError(f"Champs manquants: {', '.join(missing)}.")
-        evaluation_type = payload["evaluation_type"]
-        if evaluation_type not in {"ecrit", "oral"}:
-            raise ValueError("Type d'evaluation invalide.")
-        trimester = int(payload["trimester"])
-        if trimester not in {1, 2, 3}:
-            raise ValueError("Trimestre invalide.")
-        score = float(payload["score"])
-        max_score = float(payload["max_score"])
-        if score < 0 or max_score <= 0 or score > max_score:
-            raise ValueError("La note doit etre comprise entre 0 et le bareme.")
+        data = validate_evaluation_payload(payload)
         student = get_user_by_id(student_id)
         if not student or student["role"] != "student":
             raise ValueError("Eleve introuvable.")
@@ -725,14 +774,14 @@ class PrototypeHandler(BaseHTTPRequestHandler):
                     """,
                     (
                         student_id,
-                        clean_text(payload["title"], 160),
-                        evaluation_type,
-                        trimester,
-                        clean_text(payload["subject_area"], 120),
-                        clean_text(payload["evaluation_date"], 20),
-                        score,
-                        max_score,
-                        clean_text(payload["appreciation"], 1200),
+                        data["title"],
+                        data["evaluation_type"],
+                        data["trimester"],
+                        data["subject_area"],
+                        data["evaluation_date"],
+                        data["score"],
+                        data["max_score"],
+                        data["appreciation"],
                         iso_now()
                     ),
                 )
@@ -743,6 +792,68 @@ class PrototypeHandler(BaseHTTPRequestHandler):
             finally:
                 conn.close()
         return self._send_json({"success": True}, HTTPStatus.CREATED)
+
+    def handle_update_evaluation(self, evaluation_id):
+        user = self._require_auth()
+        if not user:
+            return
+        evaluation = get_evaluation_by_id(evaluation_id)
+        if not evaluation:
+            return self._send_json({"error": "Evaluation introuvable."}, HTTPStatus.NOT_FOUND)
+        if user["role"] not in STAFF_ROLES and evaluation["student_id"] != user["id"]:
+            return self._send_json({"error": "Acces non autorise."}, HTTPStatus.FORBIDDEN)
+        data = validate_evaluation_payload(parse_body(self))
+        with WRITE_LOCK:
+            conn = get_db()
+            try:
+                conn.execute("BEGIN")
+                conn.execute(
+                    """
+                    UPDATE evaluations
+                    SET title = %s,
+                        evaluation_type = %s,
+                        trimester = %s,
+                        subject_area = %s,
+                        evaluation_date = %s,
+                        score = %s,
+                        max_score = %s,
+                        appreciation = %s
+                    WHERE id = %s
+                    """,
+                    (
+                        data["title"],
+                        data["evaluation_type"],
+                        data["trimester"],
+                        data["subject_area"],
+                        data["evaluation_date"],
+                        data["score"],
+                        data["max_score"],
+                        data["appreciation"],
+                        evaluation_id,
+                    ),
+                )
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                conn.close()
+        return self._send_json({"success": True})
+
+    def handle_delete_evaluation(self, evaluation_id):
+        user = self._require_auth()
+        if not user:
+            return
+        evaluation = get_evaluation_by_id(evaluation_id)
+        if not evaluation:
+            return self._send_json({"error": "Evaluation introuvable."}, HTTPStatus.NOT_FOUND)
+        if user["role"] not in STAFF_ROLES and evaluation["student_id"] != user["id"]:
+            return self._send_json({"error": "Acces non autorise."}, HTTPStatus.FORBIDDEN)
+        with WRITE_LOCK:
+            conn = get_db()
+            conn.execute("DELETE FROM evaluations WHERE id = %s", (evaluation_id,))
+            conn.close()
+        return self._send_json({"success": True})
 
 
 if __name__ == "__main__":

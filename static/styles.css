@@ -104,6 +104,14 @@ button {
   gap: 14px;
 }
 
+.form-actions,
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
 .stats-grid,
 .teacher-grid,
 .summary-grid {
@@ -182,6 +190,18 @@ button {
   background: transparent;
   color: var(--muted);
   border: 1px solid var(--border);
+}
+
+.small-button {
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: var(--accent);
+  background: rgba(46, 111, 115, 0.10);
+}
+
+.danger-button {
+  color: #a12828;
+  background: rgba(161, 40, 40, 0.10);
 }
 
 .success {

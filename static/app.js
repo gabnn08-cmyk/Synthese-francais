@@ -4,6 +4,7 @@ const state = {
   user: null,
   students: [],
   selectedStudentId: null,
+  editingEvaluationId: null,
 };
 
 const STAFF_ROLES = new Set(["admin", "teacher"]);
@@ -61,6 +62,15 @@ function renderSummaryCard(title, items) {
   `;
 }
 
+function formValue(evaluation, field, fallback = "") {
+  return escapeHtml(evaluation?.[field] ?? fallback);
+}
+
+function selectedAttr(evaluation, field, value, fallback = "") {
+  const current = String(evaluation?.[field] ?? fallback);
+  return current === String(value) ? " selected" : "";
+}
+
 function renderLogin() {
   const template = document.querySelector("#login-template");
   app.innerHTML = "";
@@ -110,7 +120,8 @@ function renderLogin() {
   }
 }
 
-function studentFormMarkup(isTeacher = false) {
+function studentFormMarkup(isTeacher = false, evaluation = null) {
+  const isEditing = Boolean(evaluation);
   return `
     <form id="evaluation-form" class="stack">
       ${isTeacher ? `
@@ -123,60 +134,72 @@ function studentFormMarkup(isTeacher = false) {
       </label>` : ""}
       <label>
         Intitule de l'evaluation
-        <input name="title" type="text" placeholder="Commentaire compose 3" required>
+        <input name="title" type="text" placeholder="Commentaire compose 3" value="${formValue(evaluation, "title")}" required>
       </label>
       <label>
         Type
         <select name="evaluation_type" required>
-          <option value="ecrit">Ecrit</option>
-          <option value="oral">Oral</option>
+          <option value="ecrit"${selectedAttr(evaluation, "evaluation_type", "ecrit", "ecrit")}>Ecrit</option>
+          <option value="oral"${selectedAttr(evaluation, "evaluation_type", "oral")}>Oral</option>
         </select>
       </label>
       <label>
         Trimestre
         <select name="trimester" required>
-          <option value="1">Trimestre 1</option>
-          <option value="2">Trimestre 2</option>
-          <option value="3">Trimestre 3</option>
+          <option value="1"${selectedAttr(evaluation, "trimester", "1", "1")}>Trimestre 1</option>
+          <option value="2"${selectedAttr(evaluation, "trimester", "2")}>Trimestre 2</option>
+          <option value="3"${selectedAttr(evaluation, "trimester", "3")}>Trimestre 3</option>
         </select>
       </label>
       <label>
         Domaine
-        <input name="subject_area" type="text" placeholder="Analyse litteraire" required>
+        <input name="subject_area" type="text" placeholder="Analyse litteraire" value="${formValue(evaluation, "subject_area")}" required>
       </label>
       <label>
         Date
-        <input name="evaluation_date" type="date" required>
+        <input name="evaluation_date" type="date" value="${formValue(evaluation, "evaluation_date")}" required>
       </label>
       <label>
         Note obtenue
-        <input name="score" type="number" min="0" step="0.25" required>
+        <input name="score" type="number" min="0" step="0.25" value="${formValue(evaluation, "score")}" required>
       </label>
       <label>
         Bareme
-        <input name="max_score" type="number" min="1" step="0.25" value="20" required>
+        <input name="max_score" type="number" min="1" step="0.25" value="${formValue(evaluation, "max_score", "20")}" required>
       </label>
       <label>
         Appreciation de la professeure
-        <textarea name="appreciation" placeholder="Bonne analyse, mais il faut approfondir les justifications..." required></textarea>
+        <textarea name="appreciation" placeholder="Bonne analyse, mais il faut approfondir les justifications..." required>${formValue(evaluation, "appreciation")}</textarea>
       </label>
-      <button type="submit" class="primary-button">Ajouter l'evaluation</button>
+      <div class="form-actions">
+        <button type="submit" class="primary-button">${isEditing ? "Enregistrer les modifications" : "Ajouter l'evaluation"}</button>
+        ${isEditing ? `<button type="button" id="cancel-edit-button" class="ghost-button">Annuler</button>` : ""}
+      </div>
       <p id="form-message" class="message"></p>
     </form>
   `;
 }
 
-async function attachEvaluationForm({ isTeacher = false, onSuccess }) {
+async function attachEvaluationForm({ isTeacher = false, editingEvaluation = null, onSuccess }) {
   const form = document.querySelector("#evaluation-form");
   const message = document.querySelector("#form-message");
+  document.querySelector("#cancel-edit-button")?.addEventListener("click", async () => {
+    state.editingEvaluationId = null;
+    await onSuccess();
+  });
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     message.textContent = "";
     message.className = "message";
     const payload = Object.fromEntries(new FormData(form).entries());
     try {
-      await api("/api/evaluations", { method: "POST", body: JSON.stringify(payload) });
-      message.textContent = "Evaluation enregistree.";
+      if (editingEvaluation) {
+        await api(`/api/evaluations/${editingEvaluation.id}`, { method: "PUT", body: JSON.stringify(payload) });
+        state.editingEvaluationId = null;
+      } else {
+        await api("/api/evaluations", { method: "POST", body: JSON.stringify(payload) });
+      }
+      message.textContent = editingEvaluation ? "Evaluation modifiee." : "Evaluation enregistree.";
       message.classList.add("success");
       form.reset();
       if (!isTeacher) {
@@ -190,7 +213,7 @@ async function attachEvaluationForm({ isTeacher = false, onSuccess }) {
   });
 }
 
-function evaluationsTable(evaluations) {
+function evaluationsTable(evaluations, { canManage = false } = {}) {
   if (!evaluations.length) {
     return `<p class="empty-state">Aucune evaluation saisie pour le moment.</p>`;
   }
@@ -205,6 +228,7 @@ function evaluationsTable(evaluations) {
             <th>Trimestre</th>
             <th>Note</th>
             <th>Appreciation</th>
+            ${canManage ? "<th>Actions</th>" : ""}
           </tr>
         </thead>
         <tbody>
@@ -216,11 +240,42 @@ function evaluationsTable(evaluations) {
               <td><span class="badge">T${escapeHtml(evaluation.trimester || 1)}</span></td>
               <td>${escapeHtml(evaluation.score)}/${escapeHtml(evaluation.max_score)}</td>
               <td>${escapeHtml(evaluation.appreciation)}</td>
+              ${canManage ? `
+              <td>
+                <div class="row-actions">
+                  <button type="button" class="small-button" data-edit-evaluation-id="${escapeHtml(evaluation.id)}">Modifier</button>
+                  <button type="button" class="small-button danger-button" data-delete-evaluation-id="${escapeHtml(evaluation.id)}">Supprimer</button>
+                </div>
+              </td>` : ""}
             </tr>`).join("")}
         </tbody>
       </table>
     </div>
   `;
+}
+
+function attachEvaluationActions(evaluations, refresh) {
+  document.querySelectorAll("[data-edit-evaluation-id]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      state.editingEvaluationId = Number(button.dataset.editEvaluationId);
+      await refresh();
+      document.querySelector("#evaluation-form")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
+  document.querySelectorAll("[data-delete-evaluation-id]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const evaluationId = Number(button.dataset.deleteEvaluationId);
+      const evaluation = evaluations.find((item) => item.id === evaluationId);
+      if (!window.confirm(`Supprimer l'evaluation "${evaluation?.title || ""}" ?`)) {
+        return;
+      }
+      await api(`/api/evaluations/${evaluationId}`, { method: "DELETE" });
+      if (state.editingEvaluationId === evaluationId) {
+        state.editingEvaluationId = null;
+      }
+      await refresh();
+    });
+  });
 }
 
 async function renderStudentDashboard() {
@@ -229,6 +284,7 @@ async function renderStudentDashboard() {
     api(`/api/student-summary/${state.user.id}`),
     api("/api/class-summary"),
   ]);
+  const editingEvaluation = evaluations.find((evaluation) => evaluation.id === state.editingEvaluationId) || null;
 
   app.innerHTML = `
     <section class="dashboard">
@@ -281,17 +337,18 @@ async function renderStudentDashboard() {
         </section>
       </section>
       <section class="panel">
-        <div class="panel-header"><div><p class="eyebrow">Nouvelle evaluation</p><h3>Ajouter un ecrit ou un oral</h3></div></div>
-        ${studentFormMarkup(false)}
+        <div class="panel-header"><div><p class="eyebrow">${editingEvaluation ? "Modification" : "Nouvelle evaluation"}</p><h3>${editingEvaluation ? "Corriger une evaluation" : "Ajouter un ecrit ou un oral"}</h3></div></div>
+        ${studentFormMarkup(false, editingEvaluation)}
       </section>
       <section class="panel">
         <div class="panel-header"><div><p class="eyebrow">Historique</p><h3>Mes evaluations</h3></div></div>
-        ${evaluationsTable(evaluations)}
+        ${evaluationsTable(evaluations, { canManage: true })}
       </section>
     </section>
   `;
   document.querySelector("#logout-button").addEventListener("click", logout);
-  await attachEvaluationForm({ onSuccess: renderStudentDashboard });
+  await attachEvaluationForm({ editingEvaluation, onSuccess: renderStudentDashboard });
+  attachEvaluationActions(evaluations, renderStudentDashboard);
 }
 
 function teacherStudentButtons() {
