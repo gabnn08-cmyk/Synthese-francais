@@ -1,26 +1,26 @@
-# Synthese des evaluations de francais
+# Synthèse des évaluations de français
 
-Application web legere pour une classe: les eleves creent un compte, saisissent leurs evaluations de francais, consultent leur synthese personnelle, et la professeure ou l'administrateur voit la classe complete.
+Application web légère pour une classe: les élèves créent un compte, saisissent leurs évaluations de français, consultent leur synthèse personnelle, et la professeure ou l'administrateur voit la classe complète.
 
-## Ce qui est pret pour un usage reel
+## Ce qui est prêt pour un usage réel
 
-- comptes eleves independants avec inscription autonome ;
-- comptes administrateur et professeure distincts, crees au demarrage via variables d'environnement ;
+- comptes élèves indépendants avec inscription autonome ;
+- comptes administrateur et professeure distincts, créés au démarrage via variables d'environnement ;
 - mots de passe hashes avec PBKDF2 ;
-- sessions stockees en base, persistantes entre redemarrages ;
+- sessions stockées en base, persistantes entre redémarrages ;
 - base PostgreSQL Supabase via `DATABASE_URL` ;
-- schema PostgreSQL prive `app_private` pour eviter l'exposition REST/GraphQL du schema `public` ;
+- schéma PostgreSQL privé `app_private` pour éviter l'exposition REST/GraphQL du schéma `public` ;
 - connexion compatible Supabase SSL et pooler Supavisor.
 
 ## Lancer en local
 
-Installer les dependances:
+Installer les dépendances:
 
 ```powershell
 python -m pip install -r requirements.txt
 ```
 
-Definir l'URL PostgreSQL, puis lancer l'application:
+Définir l'URL PostgreSQL, puis lancer l'application:
 
 ```powershell
 $env:DATABASE_URL="postgresql://user:password@localhost:5432/synthese_francais"
@@ -32,31 +32,31 @@ python app.py
 
 Puis ouvrir `http://127.0.0.1:8000`.
 
-Par defaut, les comptes locaux sont:
+Par défaut, les comptes locaux sont:
 
 - administrateur: identifiant `admin`, mot de passe `ADMIN_PASSWORD`
-- professeure: identifiant `prof.francais`, mot de passe `TEACHER_PASSWORD` si defini, sinon `ADMIN_PASSWORD`
+- professeure: identifiant `prof.francais`, mot de passe `TEACHER_PASSWORD` si défini, sinon `ADMIN_PASSWORD`
 
-Pour activer les comptes de demonstration locaux:
+Pour activer les comptes de démonstration locaux:
 
 ```powershell
 $env:DEMO_MODE="true"
 python app.py
 ```
 
-Comptes demo: `emma.dupont`, `leo.bernard`, `jade.moreau` avec le mot de passe `eleve123`.
+Comptes démo: `emma.dupont`, `leo.bernard`, `jade.moreau` avec le mot de passe `eleve123`.
 
 ## Base Supabase
 
-Dans Supabase, creer un projet puis recuperer une connection string depuis `Connect`.
+Dans Supabase, créer un projet puis récupérer une connection string depuis `Connect`.
 
-Pour une app web persistante de type Render, Fly.io ou Railway, utiliser de preference:
+Pour une app web persistante de type Render, Fly.io ou Railway, utiliser de préférence:
 
-- `Session pooler` si l'hebergeur n'a pas d'IPv6 fiable ;
-- `Direct connection` si l'hebergeur supporte IPv6 ;
-- `Transaction pooler` seulement pour des environnements serverless ou tres ephemeres.
+- `Session pooler` si l'hébergeur n'a pas d'IPv6 fiable ;
+- `Direct connection` si l'hébergeur supporte IPv6 ;
+- `Transaction pooler` seulement pour des environnements serverless ou très éphémères.
 
-Variables recommandees en production:
+Variables recommandées en production:
 
 ```text
 DATABASE_URL=postgresql://postgres.PROJECT_REF:YOUR_DB_PASSWORD@aws-0-REGION.pooler.supabase.com:5432/postgres
@@ -68,15 +68,15 @@ ADMIN_USERNAME=admin
 ADMIN_FULL_NAME=Administrateur
 ADMIN_PASSWORD=mot-de-passe-fort
 TEACHER_USERNAME=prof.francais
-TEACHER_FULL_NAME=Professeur de francais
+TEACHER_FULL_NAME=Professeur de français
 TEACHER_PASSWORD=autre-mot-de-passe-fort
 ```
 
-L'application cree automatiquement le schema et les tables au demarrage. Si tu preferes les creer manuellement, coller [supabase/schema.sql](C:/Users/gabri/Documents/New%20project/supabase/schema.sql) dans le SQL Editor de Supabase.
+L'application crée automatiquement le schéma et les tables au démarrage. Si tu préfères les créer manuellement, coller [supabase/schema.sql](C:/Users/gabri/Documents/New%20project/supabase/schema.sql) dans le SQL Editor de Supabase.
 
-## Migrer les donnees SQLite existantes
+## Migrer les données SQLite existantes
 
-Lancer d'abord l'application une fois avec `DATABASE_URL` pour creer les tables Supabase, puis executer:
+Lancer d'abord l'application une fois avec `DATABASE_URL` pour créer les tables Supabase, puis exécuter:
 
 ```powershell
 $env:DATABASE_URL="postgresql://postgres.PROJECT_REF:YOUR_DB_PASSWORD@aws-0-REGION.pooler.supabase.com:5432/postgres"
@@ -85,7 +85,7 @@ $env:DATABASE_SCHEMA="app_private"
 python migrate_sqlite_to_postgres.py
 ```
 
-Par defaut, le script lit `prototype.sqlite3` dans le dossier du projet. Pour utiliser un autre fichier:
+Par défaut, le script lit `prototype.sqlite3` dans le dossier du projet. Pour utiliser un autre fichier:
 
 ```powershell
 $env:PROTOTYPE_DB_PATH="C:\chemin\vers\prototype.sqlite3"
@@ -96,32 +96,32 @@ python migrate_sqlite_to_postgres.py
 
 - `DATABASE_URL`: URL de connexion PostgreSQL Supabase, obligatoire
 - `DATABASE_SSLMODE`: mode SSL, `require` recommande pour Supabase
-- `DATABASE_SCHEMA`: schema utilise par l'application, `app_private` recommande sur Supabase
-- `ADMIN_USERNAME`: identifiant administrateur, par defaut `admin`
+- `DATABASE_SCHEMA`: schéma utilisé par l'application, `app_private` recommandé sur Supabase
+- `ADMIN_USERNAME`: identifiant administrateur, par défaut `admin`
 - `ADMIN_PASSWORD`: mot de passe initial du compte administrateur
-- `ADMIN_FULL_NAME`: nom affiche pour le compte administrateur
-- `TEACHER_USERNAME`: identifiant professeure, par defaut `prof.francais`
-- `TEACHER_PASSWORD`: mot de passe initial du compte professeure, par defaut identique a `ADMIN_PASSWORD` si absent
-- `TEACHER_FULL_NAME`: nom affiche pour le compte professeure
+- `ADMIN_FULL_NAME`: nom affiché pour le compte administrateur
+- `TEACHER_USERNAME`: identifiant professeure, par défaut `prof.francais`
+- `TEACHER_PASSWORD`: mot de passe initial du compte professeure, par défaut identique à `ADMIN_PASSWORD` si absent
+- `TEACHER_FULL_NAME`: nom affiché pour le compte professeure
 - `COOKIE_SECURE`: `true` en production HTTPS, `false` en local si besoin
-- `DEMO_MODE`: `true` uniquement pour creer les comptes de demonstration
-- `PROTOTYPE_DB_PATH`: chemin de l'ancienne base SQLite, utilise seulement par le script de migration
+- `DEMO_MODE`: `true` uniquement pour créer les comptes de démonstration
+- `PROTOTYPE_DB_PATH`: chemin de l'ancienne base SQLite, utilisé seulement par le script de migration
 
-## Deploiement Render avec Supabase
+## Déploiement Render avec Supabase
 
-Le fichier [render.yaml](C:/Users/gabri/Documents/New%20project/render.yaml) cree uniquement le service web. La base est fournie par Supabase.
+Le fichier [render.yaml](C:/Users/gabri/Documents/New%20project/render.yaml) crée uniquement le service web. La base est fournie par Supabase.
 
-Etapes:
+Étapes:
 
-1. Creer le projet Supabase.
+1. Créer le projet Supabase.
 2. Copier la connection string `Session pooler` depuis Supabase.
-3. Pousser ce dossier dans un depot GitHub.
-4. Dans Render, creer un Blueprint depuis le depot.
+3. Pousser ce dossier dans un dépôt GitHub.
+4. Dans Render, créer un Blueprint depuis le dépôt.
 5. Renseigner `DATABASE_URL`, `ADMIN_PASSWORD` et `TEACHER_PASSWORD` dans les variables d'environnement Render.
-6. Deployer.
-7. Verifier `/healthz`, puis tester une connexion professeure.
+6. Déployer.
+7. Vérifier `/healthz`, puis tester une connexion professeure.
 
-## Verification rapide
+## Vérification rapide
 
 ```powershell
 python -m py_compile app.py migrate_sqlite_to_postgres.py
@@ -130,8 +130,8 @@ python app.py
 
 Tester ensuite:
 
-- creation d'un compte eleve ;
-- ajout d'une evaluation ;
-- deconnexion/reconnexion ;
-- connexion professeure et consultation de la liste des eleves ;
+- création d'un compte élève ;
+- ajout d'une évaluation ;
+- déconnexion/reconnexion ;
+- connexion professeure et consultation de la liste des élèves ;
 - connexion administrateur avec un compte distinct.

@@ -126,20 +126,20 @@ function studentFormMarkup(isTeacher = false, evaluation = null) {
     <form id="evaluation-form" class="stack">
       ${isTeacher ? `
       <label>
-        Eleve concerne
+        Élève concerné
         <select name="student_id" required>
-          <option value="">Choisir un eleve</option>
+          <option value="">Choisir un élève</option>
           ${state.students.map((student) => `<option value="${student.id}">${escapeHtml(student.full_name)}</option>`).join("")}
         </select>
       </label>` : ""}
       <label>
-        Intitule de l'evaluation
-        <input name="title" type="text" placeholder="Commentaire compose 3" value="${formValue(evaluation, "title")}" required>
+        Intitulé de l'évaluation
+        <input name="title" type="text" placeholder="Commentaire composé 3" value="${formValue(evaluation, "title")}" required>
       </label>
       <label>
         Type
         <select name="evaluation_type" required>
-          <option value="ecrit"${selectedAttr(evaluation, "evaluation_type", "ecrit", "ecrit")}>Ecrit</option>
+          <option value="ecrit"${selectedAttr(evaluation, "evaluation_type", "ecrit", "ecrit")}>Écrit</option>
           <option value="oral"${selectedAttr(evaluation, "evaluation_type", "oral")}>Oral</option>
         </select>
       </label>
@@ -153,7 +153,7 @@ function studentFormMarkup(isTeacher = false, evaluation = null) {
       </label>
       <label>
         Domaine
-        <input name="subject_area" type="text" placeholder="Analyse litteraire" value="${formValue(evaluation, "subject_area")}" required>
+        <input name="subject_area" type="text" placeholder="Analyse littéraire" value="${formValue(evaluation, "subject_area")}" required>
       </label>
       <label>
         Date
@@ -164,15 +164,15 @@ function studentFormMarkup(isTeacher = false, evaluation = null) {
         <input name="score" type="number" min="0" step="0.25" value="${formValue(evaluation, "score")}" required>
       </label>
       <label>
-        Bareme
+        Barème
         <input name="max_score" type="number" min="1" step="0.25" value="${formValue(evaluation, "max_score", "20")}" required>
       </label>
       <label>
-        Appreciation de la professeure
+        Appréciation de la professeure
         <textarea name="appreciation" placeholder="Bonne analyse, mais il faut approfondir les justifications..." required>${formValue(evaluation, "appreciation")}</textarea>
       </label>
       <div class="form-actions">
-        <button type="submit" class="primary-button">${isEditing ? "Enregistrer les modifications" : "Ajouter l'evaluation"}</button>
+        <button type="submit" class="primary-button">${isEditing ? "Enregistrer les modifications" : "Ajouter l'évaluation"}</button>
         ${isEditing ? `<button type="button" id="cancel-edit-button" class="ghost-button">Annuler</button>` : ""}
       </div>
       <p id="form-message" class="message"></p>
@@ -199,7 +199,7 @@ async function attachEvaluationForm({ isTeacher = false, editingEvaluation = nul
       } else {
         await api("/api/evaluations", { method: "POST", body: JSON.stringify(payload) });
       }
-      message.textContent = editingEvaluation ? "Evaluation modifiee." : "Evaluation enregistree.";
+      message.textContent = editingEvaluation ? "Évaluation modifiée." : "Évaluation enregistrée.";
       message.classList.add("success");
       form.reset();
       if (!isTeacher) {
@@ -215,7 +215,7 @@ async function attachEvaluationForm({ isTeacher = false, editingEvaluation = nul
 
 function evaluationsTable(evaluations, { canManage = false } = {}) {
   if (!evaluations.length) {
-    return `<p class="empty-state">Aucune evaluation saisie pour le moment.</p>`;
+    return `<p class="empty-state">Aucune évaluation saisie pour le moment.</p>`;
   }
   return `
     <div class="table-wrap">
@@ -223,11 +223,11 @@ function evaluationsTable(evaluations, { canManage = false } = {}) {
         <thead>
           <tr>
             <th>Date</th>
-            <th>Evaluation</th>
+            <th>Évaluation</th>
             <th>Type</th>
             <th>Trimestre</th>
             <th>Note</th>
-            <th>Appreciation</th>
+            <th>Appréciation</th>
             ${canManage ? "<th>Actions</th>" : ""}
           </tr>
         </thead>
@@ -266,7 +266,7 @@ function attachEvaluationActions(evaluations, refresh) {
     button.addEventListener("click", async () => {
       const evaluationId = Number(button.dataset.deleteEvaluationId);
       const evaluation = evaluations.find((item) => item.id === evaluationId);
-      if (!window.confirm(`Supprimer l'evaluation "${evaluation?.title || ""}" ?`)) {
+      if (!window.confirm(`Supprimer l'évaluation "${evaluation?.title || ""}" ?`)) {
         return;
       }
       await api(`/api/evaluations/${evaluationId}`, { method: "DELETE" });
@@ -291,18 +291,18 @@ async function renderStudentDashboard() {
       <div class="panel">
         <div class="toolbar">
           <div>
-            <p class="eyebrow">Espace eleve</p>
+            <p class="eyebrow">Espace élève</p>
             <h2>${escapeHtml(state.user.full_name)}</h2>
-            <p class="muted">Saisie personnelle des notes et appreciations de francais.</p>
+            <p class="muted">Saisie personnelle des notes et appréciations de français.</p>
           </div>
           <button id="logout-button" class="ghost-button">Deconnexion</button>
         </div>
       </div>
       <section class="stats-grid">
-        <article class="stat-card"><p class="stat-label">Moyenne generale</p><p class="stat-value">${numberOrDash(summary.stats.average)}</p></article>
-        <article class="stat-card"><p class="stat-label">Moyenne ecrite</p><p class="stat-value">${numberOrDash(summary.stats.written_average)}</p></article>
+        <article class="stat-card"><p class="stat-label">Moyenne générale</p><p class="stat-value">${numberOrDash(summary.stats.average)}</p></article>
+        <article class="stat-card"><p class="stat-label">Moyenne écrite</p><p class="stat-value">${numberOrDash(summary.stats.written_average)}</p></article>
         <article class="stat-card"><p class="stat-label">Moyenne orale</p><p class="stat-value">${numberOrDash(summary.stats.oral_average)}</p></article>
-        <article class="stat-card"><p class="stat-label">Evaluations saisies</p><p class="stat-value">${summary.stats.evaluations_count}</p></article>
+        <article class="stat-card"><p class="stat-label">Évaluations saisies</p><p class="stat-value">${summary.stats.evaluations_count}</p></article>
       </section>
       ${renderTrimesterAverages(summary.stats.trimester_averages)}
       <section class="summary-grid">
@@ -311,37 +311,37 @@ async function renderStudentDashboard() {
         ${renderSummaryCard("Conseils concrets", summary.improvements)}
       </section>
       <section class="panel">
-        <p class="eyebrow">Avis general</p>
+        <p class="eyebrow">Avis général</p>
         <h3>${escapeHtml(summary.general_opinion)}</h3>
       </section>
       <section class="panel">
         <div class="panel-header">
           <div>
             <p class="eyebrow">Vue d'ensemble</p>
-            <h3>Synthese generale de la classe</h3>
+            <h3>Synthèse générale de la classe</h3>
           </div>
-          <span class="badge">${escapeHtml(classSummary.students_count)} eleves</span>
+          <span class="badge">${escapeHtml(classSummary.students_count)} élèves</span>
         </div>
         <section class="stats-grid">
           <article class="stat-card"><p class="stat-label">Moyenne de classe</p><p class="stat-value">${classSummary.class_average === null ? "-" : `${classSummary.class_average.toFixed(2)}/20`}</p></article>
-          <article class="stat-card"><p class="stat-label">Evaluations recensees</p><p class="stat-value">${classSummary.evaluations_count}</p></article>
+          <article class="stat-card"><p class="stat-label">Évaluations recensées</p><p class="stat-value">${classSummary.evaluations_count}</p></article>
         </section>
         ${renderTrimesterAverages(classSummary.trimester_averages)}
         <section class="summary-grid">
-          ${renderSummaryCard("Forces recurrentes", classSummary.top_strengths)}
-          ${renderSummaryCard("Conseils recurrents", classSummary.top_improvements)}
+          ${renderSummaryCard("Forces récurrentes", classSummary.top_strengths)}
+          ${renderSummaryCard("Conseils récurrents", classSummary.top_improvements)}
         </section>
         <section class="stat-card">
-          <p class="eyebrow">Avis general sur la classe</p>
+          <p class="eyebrow">Avis général sur la classe</p>
           <h3>${escapeHtml(classSummary.general_opinion)}</h3>
         </section>
       </section>
       <section class="panel">
-        <div class="panel-header"><div><p class="eyebrow">${editingEvaluation ? "Modification" : "Nouvelle evaluation"}</p><h3>${editingEvaluation ? "Corriger une evaluation" : "Ajouter un ecrit ou un oral"}</h3></div></div>
+        <div class="panel-header"><div><p class="eyebrow">${editingEvaluation ? "Modification" : "Nouvelle évaluation"}</p><h3>${editingEvaluation ? "Corriger une évaluation" : "Ajouter un écrit ou un oral"}</h3></div></div>
         ${studentFormMarkup(false, editingEvaluation)}
       </section>
       <section class="panel">
-        <div class="panel-header"><div><p class="eyebrow">Historique</p><h3>Mes evaluations</h3></div></div>
+        <div class="panel-header"><div><p class="eyebrow">Historique</p><h3>Mes évaluations</h3></div></div>
         ${evaluationsTable(evaluations, { canManage: true })}
       </section>
     </section>
@@ -386,40 +386,40 @@ async function renderStaffDashboard() {
           <div>
             <p class="eyebrow">${state.user.role === "admin" ? "Espace administration" : "Espace professeure"}</p>
             <h2>${escapeHtml(state.user.full_name)}</h2>
-            <p class="muted">Vue globale de la classe et lecture des syntheses individuelles.</p>
+            <p class="muted">Vue globale de la classe et lecture des synthèses individuelles.</p>
           </div>
           <button id="logout-button" class="ghost-button">Deconnexion</button>
         </div>
       </div>
       <section class="stats-grid">
-        <article class="stat-card"><p class="stat-label">Eleves suivis</p><p class="stat-value">${summary.students_count}</p></article>
-        <article class="stat-card"><p class="stat-label">Evaluations totales</p><p class="stat-value">${summary.evaluations_count}</p></article>
+        <article class="stat-card"><p class="stat-label">Élèves suivis</p><p class="stat-value">${summary.students_count}</p></article>
+        <article class="stat-card"><p class="stat-label">Évaluations totales</p><p class="stat-value">${summary.evaluations_count}</p></article>
         <article class="stat-card"><p class="stat-label">Moyenne de classe</p><p class="stat-value">${summary.class_average === null ? "-" : `${summary.class_average.toFixed(2)}/20`}</p></article>
       </section>
       ${renderTrimesterAverages(summary.trimester_averages)}
       <section class="summary-grid">
-        ${renderSummaryCard("Forces recurrentes", summary.top_strengths)}
-        ${renderSummaryCard("Conseils recurrents", summary.top_improvements)}
+        ${renderSummaryCard("Forces récurrentes", summary.top_strengths)}
+        ${renderSummaryCard("Conseils récurrents", summary.top_improvements)}
       </section>
       <section class="panel">
-        <div class="panel-header"><div><p class="eyebrow">Ajout rapide</p><h3>Saisir une evaluation pour un eleve</h3></div></div>
+        <div class="panel-header"><div><p class="eyebrow">Ajout rapide</p><h3>Saisir une évaluation pour un élève</h3></div></div>
         ${studentFormMarkup(true)}
       </section>
       <section class="teacher-grid">
         <aside class="panel">
           <p class="eyebrow">Classe</p>
-          <h3>Syntheses individuelles</h3>
+          <h3>Synthèses individuelles</h3>
           <div class="student-list">${teacherStudentButtons()}</div>
         </aside>
         <section class="panel">
           ${selectedSummary ? `
             <div class="student-head">
-              <div><p class="eyebrow">Eleve selectionne</p><h3>${escapeHtml(selectedSummary.student.full_name)}</h3></div>
-              <span class="badge">${escapeHtml(selectedSummary.stats.evaluations_count)} evaluations</span>
+              <div><p class="eyebrow">Élève sélectionné</p><h3>${escapeHtml(selectedSummary.student.full_name)}</h3></div>
+              <span class="badge">${escapeHtml(selectedSummary.stats.evaluations_count)} évaluations</span>
             </div>
             <section class="stats-grid">
-              <article class="stat-card"><p class="stat-label">Moyenne generale</p><p class="stat-value">${numberOrDash(selectedSummary.stats.average)}</p></article>
-              <article class="stat-card"><p class="stat-label">Ecrit</p><p class="stat-value">${numberOrDash(selectedSummary.stats.written_average)}</p></article>
+              <article class="stat-card"><p class="stat-label">Moyenne générale</p><p class="stat-value">${numberOrDash(selectedSummary.stats.average)}</p></article>
+              <article class="stat-card"><p class="stat-label">Écrit</p><p class="stat-value">${numberOrDash(selectedSummary.stats.written_average)}</p></article>
               <article class="stat-card"><p class="stat-label">Oral</p><p class="stat-value">${numberOrDash(selectedSummary.stats.oral_average)}</p></article>
             </section>
             ${renderTrimesterAverages(selectedSummary.stats.trimester_averages)}
@@ -429,14 +429,14 @@ async function renderStaffDashboard() {
               ${renderSummaryCard("Conseils concrets", selectedSummary.improvements)}
             </section>
             <section class="stat-card">
-              <p class="eyebrow">Avis general</p>
+              <p class="eyebrow">Avis général</p>
               <h3>${escapeHtml(selectedSummary.general_opinion)}</h3>
             </section>
             <section class="panel" style="padding:0;box-shadow:none;border:0;background:transparent;">
-              <div class="panel-header"><div><p class="eyebrow">Historique</p><h3>Evaluations enregistrees</h3></div></div>
+              <div class="panel-header"><div><p class="eyebrow">Historique</p><h3>Évaluations enregistrées</h3></div></div>
               ${evaluationsTable(selectedEvaluations)}
             </section>
-          ` : `<p class="empty-state">Aucun eleve disponible.</p>`}
+          ` : `<p class="empty-state">Aucun élève disponible.</p>`}
         </section>
       </section>
     </section>

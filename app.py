@@ -1,5 +1,6 @@
 import hashlib
 import hmac
+import html
 import json
 import os
 import re
@@ -23,17 +24,34 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 DATABASE_SSLMODE = os.environ.get("DATABASE_SSLMODE")
 DATABASE_SCHEMA = os.environ.get("DATABASE_SCHEMA", "public")
 if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", DATABASE_SCHEMA):
-    raise RuntimeError("DATABASE_SCHEMA doit etre un identifiant PostgreSQL simple.")
+    raise RuntimeError("DATABASE_SCHEMA doit être un identifiant PostgreSQL simple.")
 STATIC_DIR = BASE_DIR / "static"
 SESSION_DAYS = int(os.environ.get("SESSION_DAYS", "14"))
 COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "auto").lower()
 DEMO_MODE = os.environ.get("DEMO_MODE", "false").lower() in {"1", "true", "yes"}
+SITE_NAME = os.environ.get("SITE_NAME", "Synthèse de français")
+SITE_URL = os.environ.get("SITE_URL", "")
+LEGAL_ENTITY_NAME = os.environ.get("LEGAL_ENTITY_NAME", "Établissement responsable du service")
+LEGAL_ENTITY_STATUS = os.environ.get("LEGAL_ENTITY_STATUS", "Établissement scolaire")
+LEGAL_ENTITY_ADDRESS = os.environ.get("LEGAL_ENTITY_ADDRESS", "Adresse à compléter")
+LEGAL_CONTACT_EMAIL = os.environ.get("LEGAL_CONTACT_EMAIL", "contact@example.fr")
+LEGAL_CONTACT_PHONE = os.environ.get("LEGAL_CONTACT_PHONE", "Téléphone à compléter")
+LEGAL_PUBLICATION_DIRECTOR = os.environ.get("LEGAL_PUBLICATION_DIRECTOR", "Responsable de publication à compléter")
+LEGAL_DPO_CONTACT = os.environ.get("LEGAL_DPO_CONTACT", LEGAL_CONTACT_EMAIL)
+HOSTING_PROVIDER_NAME = os.environ.get("HOSTING_PROVIDER_NAME", "Hébergeur à compléter")
+HOSTING_PROVIDER_ADDRESS = os.environ.get("HOSTING_PROVIDER_ADDRESS", "Adresse de l'hébergeur à compléter")
+HOSTING_PROVIDER_PHONE = os.environ.get("HOSTING_PROVIDER_PHONE", "Téléphone de l'hébergeur à compléter")
+PRIVACY_ACCOUNT_RETENTION = os.environ.get("PRIVACY_ACCOUNT_RETENTION", "jusqu'à 12 mois après la dernière activité du compte")
+PRIVACY_EVALUATION_RETENTION = os.environ.get("PRIVACY_EVALUATION_RETENTION", "pendant l'année scolaire en cours puis selon la politique de l'établissement")
+PRIVACY_SESSION_RETENTION = os.environ.get("PRIVACY_SESSION_RETENTION", f"{SESSION_DAYS} jours maximum")
+ACCESSIBILITY_CONTACT = os.environ.get("ACCESSIBILITY_CONTACT", LEGAL_CONTACT_EMAIL)
+ACCESSIBILITY_MULTIYEAR_PLAN_URL = os.environ.get("ACCESSIBILITY_MULTIYEAR_PLAN_URL", "")
 ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD = os.environ["ADMIN_PASSWORD"]
 ADMIN_FULL_NAME = os.environ.get("ADMIN_FULL_NAME", "Administrateur")
 TEACHER_USERNAME = os.environ.get("TEACHER_USERNAME", "prof.francais")
 TEACHER_PASSWORD = os.environ.get("TEACHER_PASSWORD", ADMIN_PASSWORD)
-TEACHER_FULL_NAME = os.environ.get("TEACHER_FULL_NAME", "Professeur de francais")
+TEACHER_FULL_NAME = os.environ.get("TEACHER_FULL_NAME", "Professeur de français")
 STAFF_ROLES = {"admin", "teacher"}
 WRITE_LOCK = threading.Lock()
 
@@ -44,6 +62,243 @@ def utc_now():
 
 def iso_now():
     return utc_now().isoformat()
+
+
+def escape_html(value):
+    return html.escape(str(value or ""), quote=True)
+
+
+def format_contact_link(value):
+    safe_value = escape_html(value)
+    if "@" in value:
+        return f'<a href="mailto:{safe_value}">{safe_value}</a>'
+    return safe_value
+
+
+def compliance_navigation():
+    return (
+        '<nav class="compliance-nav" aria-label="Informations légales">'
+        '<a href="/">Accueil</a>'
+        '<a href="/mentions-legales">Mentions légales</a>'
+        '<a href="/confidentialite">Confidentialité</a>'
+        '<a href="/cookies">Cookies</a>'
+        '<a href="/accessibilite">Accessibilité : non conforme</a>'
+        "</nav>"
+    )
+
+
+def render_information_page(title, intro, sections):
+    rendered_sections = []
+    for heading, paragraphs in sections:
+        content = "".join(f"<p>{paragraph}</p>" for paragraph in paragraphs)
+        rendered_sections.append(f"<section class=\"legal-section\"><h2>{heading}</h2>{content}</section>")
+    body = "".join(rendered_sections)
+    return f"""<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{escape_html(title)} | {escape_html(SITE_NAME)}</title>
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#content">Aller au contenu principal</a>
+  <div class="page-shell">
+    <header class="hero hero-compact">
+      <p class="eyebrow">Information réglementaire</p>
+      <h1>{escape_html(title)}</h1>
+      <p class="hero-copy">{intro}</p>
+      {compliance_navigation()}
+    </header>
+    <main id="content" class="legal-layout" tabindex="-1">
+      {body}
+    </main>
+  </div>
+</body>
+</html>"""
+
+
+def render_mentions_legales():
+    site_reference = escape_html(SITE_URL) if SITE_URL else "Adresse du site communiquée au déploiement"
+    return render_information_page(
+        "Mentions légales",
+        "Cette page regroupe les informations d'identification de l'éditeur du service, du responsable de publication et de son hébergeur.",
+        [
+            (
+                "Éditeur du service",
+                [
+                    f"<strong>Nom de l'organisme :</strong> {escape_html(LEGAL_ENTITY_NAME)}",
+                    f"<strong>Statut :</strong> {escape_html(LEGAL_ENTITY_STATUS)}",
+                    f"<strong>Adresse :</strong> {escape_html(LEGAL_ENTITY_ADDRESS)}",
+                    f"<strong>Courriel :</strong> {format_contact_link(LEGAL_CONTACT_EMAIL)}",
+                    f"<strong>Téléphone :</strong> {escape_html(LEGAL_CONTACT_PHONE)}",
+                    f"<strong>Adresse du site :</strong> {site_reference}",
+                ],
+            ),
+            (
+                "Direction de la publication",
+                [f"<strong>Responsable de publication :</strong> {escape_html(LEGAL_PUBLICATION_DIRECTOR)}"],
+            ),
+            (
+                "Hébergement",
+                [
+                    f"<strong>Hébergeur :</strong> {escape_html(HOSTING_PROVIDER_NAME)}",
+                    f"<strong>Adresse :</strong> {escape_html(HOSTING_PROVIDER_ADDRESS)}",
+                    f"<strong>Téléphone :</strong> {escape_html(HOSTING_PROVIDER_PHONE)}",
+                ],
+            ),
+            (
+                "Propriété intellectuelle",
+                [
+                    "Les contenus fournis dans ce service sont réservés à un usage pédagogique interne, sauf mention contraire.",
+                    "Toute réutilisation externe des textes, évaluations ou données nominatives doit être autorisée par l'organisme responsable du service.",
+                ],
+            ),
+        ],
+    )
+
+
+def render_confidentialite():
+    return render_information_page(
+        "Politique de confidentialité",
+        "Le service traite des données personnelles d'élèves et de membres de l'équipe pédagogique pour permettre l'authentification, la saisie d'évaluations et la consultation de synthèses.",
+        [
+            (
+                "Responsable du traitement",
+                [
+                    f"Le responsable du traitement est <strong>{escape_html(LEGAL_ENTITY_NAME)}</strong>, joignable à l'adresse {format_contact_link(LEGAL_CONTACT_EMAIL)}.",
+                    f"Pour toute question relative à la protection des données, vous pouvez contacter le point de contact RGPD à l'adresse {format_contact_link(LEGAL_DPO_CONTACT)}.",
+                ],
+            ),
+            (
+                "Données traitées",
+                [
+                    "Le service traite les données d'identification du compte (nom complet, identifiant, rôle), les mots de passe sous forme hachée, les données de session techniques, ainsi que les évaluations pédagogiques saisies dans l'application.",
+                ],
+            ),
+            (
+                "Finalités et bases légales",
+                [
+                    "Les données sont traitées pour créer les comptes, authentifier les utilisateurs, permettre la saisie et la consultation des évaluations, ainsi que produire des synthèses pédagogiques.",
+                    "La base légale est l'exécution d'une mission d'intérêt public ou l'intérêt légitime de l'organisme gestionnaire, selon le cadre d'utilisation effectif du service dans l'établissement.",
+                ],
+            ),
+            (
+                "Caractère obligatoire des données",
+                [
+                    "Les informations demandées lors de la création d'un compte sont nécessaires pour ouvrir l'accès au service et rattacher les évaluations au bon élève.",
+                    "En l'absence de ces informations, le compte ne peut pas être créé.",
+                ],
+            ),
+            (
+                "Destinataires",
+                [
+                    "Les données sont accessibles aux élèves pour leur propre espace, ainsi qu'aux personnels autorisés disposant d'un rôle administrateur ou professeure dans l'application.",
+                    "L'hébergeur et les prestataires techniques agissent, le cas échéant, en qualité de sous-traitants pour la mise à disposition du service.",
+                ],
+            ),
+            (
+                "Durées de conservation",
+                [
+                    f"Les comptes utilisateurs sont conservés {escape_html(PRIVACY_ACCOUNT_RETENTION)}.",
+                    f"Les évaluations sont conservées {escape_html(PRIVACY_EVALUATION_RETENTION)}.",
+                    f"Les sessions d'authentification sont conservées {escape_html(PRIVACY_SESSION_RETENTION)}.",
+                ],
+            ),
+            (
+                "Droits des personnes",
+                [
+                    "Vous disposez d'un droit d'accès, de rectification, d'effacement, de limitation et, selon la base légale applicable, d'un droit d'opposition.",
+                    f"Ces droits peuvent être exercés en écrivant à {format_contact_link(LEGAL_DPO_CONTACT)}.",
+                    'Vous pouvez également introduire une réclamation auprès de la <a href="https://www.cnil.fr/fr/plaintes" rel="noreferrer" target="_blank">CNIL</a>.',
+                ],
+            ),
+            (
+                "Transferts hors Union européenne",
+                [
+                    "Le service est conçu pour limiter les transferts hors Union européenne. En cas d'utilisation d'un prestataire impliquant un transfert, l'information correspondante et les garanties applicables devront être communiquées sur cette page.",
+                ],
+            ),
+        ],
+    )
+
+
+def render_cookies():
+    return render_information_page(
+        "Politique cookies",
+        "Le site utilise uniquement les traceurs strictement nécessaires à son fonctionnement, sauf ajout ultérieur d'outils nécessitant un consentement préalable.",
+        [
+            (
+                "Cookie nécessaire",
+                [
+                    f"Un cookie de session d'authentification nommé <code>session_token</code> est déposé pour maintenir la connexion pendant une durée maximale de {SESSION_DAYS} jours.",
+                    "Ce cookie est utilisé exclusivement pour l'authentification et la sécurité du service. Il ne sert ni à la publicité ni à la mesure d'audience.",
+                ],
+            ),
+            (
+                "Absence de traceurs marketing",
+                [
+                    "Aucun cookie publicitaire, aucun traceur de réseau social et aucun outil de mesure d'audience soumis au consentement n'est déposé par défaut.",
+                    "Si de nouveaux traceurs non strictement nécessaires sont ajoutés, un mécanisme de recueil du consentement devra être mis en place avant leur dépôt.",
+                ],
+            ),
+            (
+                "Gestion des préférences",
+                [
+                    "Comme seuls des traceurs strictement nécessaires sont utilisés à ce jour, aucune bannière de consentement n'est affichée.",
+                    f"Pour toute question, vous pouvez écrire à {format_contact_link(LEGAL_CONTACT_EMAIL)}.",
+                ],
+            ),
+        ],
+    )
+
+
+def render_accessibilite():
+    action_plan = (
+        f'Le schéma pluriannuel de mise en accessibilité est consultable à l’adresse <a href="{escape_html(ACCESSIBILITY_MULTIYEAR_PLAN_URL)}">{escape_html(ACCESSIBILITY_MULTIYEAR_PLAN_URL)}</a>.'
+        if ACCESSIBILITY_MULTIYEAR_PLAN_URL
+        else "Le schéma pluriannuel de mise en accessibilité n'est pas encore publié sur ce service."
+    )
+    return render_information_page(
+        "Accessibilité numérique",
+        "État de conformité au RGAA au 27 mai 2026 : non conforme. Aucun audit complet n'a encore permis d'établir un taux de conformité opposable.",
+        [
+            (
+                "Déclaration de conformité",
+                [
+                    "Cette déclaration s'applique au service web de synthèse des évaluations de français.",
+                    "Faute d'audit complet, le service est actuellement déclaré non conforme au Référentiel général d'amélioration de l'accessibilité (RGAA).",
+                ],
+            ),
+            (
+                "Contenus non accessibles identifiés à ce stade",
+                [
+                    "Certaines restitutions dynamiques JavaScript n'ont pas encore fait l'objet d'une validation complète avec technologies d'assistance.",
+                    "Les parcours de tableau et certains messages de statut doivent encore être testés et, si nécessaire, ajustés après audit.",
+                ],
+            ),
+            (
+                "Améliorations déjà mises en place",
+                [
+                    "Le site est en français, dispose d'un lien d'évitement, d'une navigation visible vers les pages réglementaires et de messages d'erreur prévus pour être annoncés aux technologies d'assistance.",
+                ],
+            ),
+            (
+                "Retour d'information et contact",
+                [
+                    f"Si vous ne parvenez pas à accéder à un contenu ou à un service, vous pouvez contacter {format_contact_link(ACCESSIBILITY_CONTACT)} pour être orienté vers une alternative accessible ou obtenir le contenu sous une autre forme.",
+                ],
+            ),
+            (
+                "Voies de recours",
+                [
+                    "Si vous constatez un défaut d'accessibilité vous empêchant d'accéder à un contenu et que vous ne recevez pas de réponse satisfaisante, vous pouvez saisir le Défenseur des droits.",
+                    action_plan,
+                ],
+            ),
+        ],
+    )
 
 
 def get_db():
@@ -203,7 +458,7 @@ def ensure_account(conn, username, password, full_name, role):
 
 def ensure_staff_accounts(conn):
     if ADMIN_USERNAME == TEACHER_USERNAME:
-        raise RuntimeError("ADMIN_USERNAME et TEACHER_USERNAME doivent etre differents.")
+        raise RuntimeError("ADMIN_USERNAME et TEACHER_USERNAME doivent être différents.")
     ensure_account(conn, ADMIN_USERNAME, ADMIN_PASSWORD, ADMIN_FULL_NAME, "admin")
     ensure_account(conn, TEACHER_USERNAME, TEACHER_PASSWORD, TEACHER_FULL_NAME, "teacher")
 
@@ -293,11 +548,11 @@ def score_percent(evaluation):
     return (evaluation["score"] / evaluation["max_score"]) * 20 if evaluation["max_score"] else 0
 
 
-NO_EXPLICIT_STRENGTH = "Les appreciations saisies ne formulent pas encore de point fort explicite."
-NO_EXPLICIT_VIGILANCE = "Les appreciations saisies ne formulent pas encore de point de vigilance explicite."
-NO_EXPLICIT_ADVICE = "Aucun conseil concret ne peut etre deduit sans indication explicite dans les appreciations."
-NO_CLASS_STRENGTH_TREND = "Aucune tendance positive explicite ne ressort encore des appreciations."
-NO_CLASS_ADVICE_TREND = "Aucun axe de conseil recurrent ne ressort encore des appreciations."
+NO_EXPLICIT_STRENGTH = "Les appréciations saisies ne formulent pas encore de point fort explicite."
+NO_EXPLICIT_VIGILANCE = "Les appréciations saisies ne formulent pas encore de point de vigilance explicite."
+NO_EXPLICIT_ADVICE = "Aucun conseil concret ne peut être déduit sans indication explicite dans les appréciations."
+NO_CLASS_STRENGTH_TREND = "Aucune tendance positive explicite ne ressort encore des appréciations."
+NO_CLASS_ADVICE_TREND = "Aucun axe de conseil récurrent ne ressort encore des appréciations."
 
 POSITIVE_MARKERS = [
     "bon",
@@ -356,96 +611,96 @@ IMPROVEMENT_MARKERS = [
 POSITIVE_RULES = [
     {
         "keywords": ["analyse", "commentaire", "interpretation"],
-        "label": "Une capacite d'analyse est explicitement soulignee.",
+        "label": "Une capacité d'analyse est explicitement soulignée.",
     },
     {
         "keywords": ["argument", "argumentation"],
-        "label": "Une argumentation solide est signalee.",
+        "label": "Une argumentation solide est signalée.",
     },
     {
         "keywords": ["oral", "prise de parole"],
-        "label": "Une aisance a l'oral est mentionnee.",
+        "label": "Une aisance à l'oral est mentionnée.",
     },
     {
         "keywords": ["ecrit", "redaction", "expression", "style"],
-        "label": "Une expression ecrite convaincante est relevee.",
+        "label": "Une expression écrite convaincante est relevée.",
     },
     {
         "keywords": ["lecture", "comprehension"],
-        "label": "Une bonne comprehension des textes est relevee.",
+        "label": "Une bonne compréhension des textes est relevée.",
     },
     {
         "keywords": ["rigueur", "serieux", "regularite", "autonomie"],
-        "label": "La rigueur et le serieux du travail sont valorises.",
+        "label": "La rigueur et le sérieux du travail sont valorisés.",
     },
     {
         "keywords": ["orthographe", "accord"],
-        "label": "La maitrise orthographique est valorisee.",
+        "label": "La maîtrise orthographique est valorisée.",
     },
     {
         "keywords": ["syntaxe", "phrase"],
-        "label": "La qualite de la syntaxe est relevee.",
+        "label": "La qualité de la syntaxe est relevée.",
     },
     {
         "keywords": ["methode", "consigne"],
-        "label": "La methode est valorisee.",
+        "label": "La méthode est valorisée.",
     },
     {
         "keywords": ["vocabulaire", "lexique"],
-        "label": "Le vocabulaire est valorise.",
+        "label": "Le vocabulaire est valorisé.",
     },
 ]
 
 IMPROVEMENT_RULES = [
     {
         "keywords": ["analyse", "commentaire", "interpretation", "approfond"],
-        "point": "Un approfondissement de l'analyse est demande.",
-        "advice": "Pour approfondir l'analyse, partir d'une idee precise, l'appuyer sur un exemple du texte, puis expliquer l'effet produit.",
+        "point": "Un approfondissement de l'analyse est demandé.",
+        "advice": "Pour approfondir l'analyse, partir d'une idée précise, l'appuyer sur un exemple du texte, puis expliquer l'effet produit.",
     },
     {
         "keywords": ["precision", "precis"],
-        "point": "Le besoin de precision est mentionne dans les appreciations.",
-        "advice": "Pour gagner en precision, relire chaque reponse en verifiant que les notions, les citations et les termes litteraires sont exacts.",
+        "point": "Le besoin de précision est mentionné dans les appréciations.",
+        "advice": "Pour gagner en précision, relire chaque réponse en vérifiant que les notions, les citations et les termes littéraires sont exacts.",
     },
     {
         "keywords": ["syntaxe", "phrase"],
-        "point": "La syntaxe est indiquee comme un point a travailler.",
-        "advice": "Pour ameliorer la syntaxe, privilegier des phrases plus courtes, verifier le verbe principal et relire a voix basse.",
+        "point": "La syntaxe est indiquée comme un point à travailler.",
+        "advice": "Pour améliorer la syntaxe, privilégier des phrases plus courtes, vérifier le verbe principal et relire à voix basse.",
     },
     {
         "keywords": ["orthographe", "accord"],
-        "point": "L'orthographe est signalee comme un axe de vigilance.",
+        "point": "L'orthographe est signalée comme un axe de vigilance.",
         "advice": "Pour renforcer l'orthographe, consacrer une relecture distincte aux accords, aux terminaisons verbales et aux accents.",
     },
     {
         "keywords": ["structure", "organiser", "organisation", "plan"],
-        "point": "Une structuration plus nette des idees est attendue.",
-        "advice": "Pour structurer le devoir, annoncer clairement l'idee du paragraphe, developper un seul argument, puis conclure avant de passer au suivant.",
+        "point": "Une structuration plus nette des idées est attendue.",
+        "advice": "Pour structurer le devoir, annoncer clairement l'idée du paragraphe, développer un seul argument, puis conclure avant de passer au suivant.",
     },
     {
         "keywords": ["justifier", "justification", "citation", "preuve"],
         "point": "La justification des arguments est explicitement attendue.",
-        "advice": "Pour mieux justifier, associer chaque affirmation a une citation courte ou a un exemple precis, puis commenter ce choix.",
+        "advice": "Pour mieux justifier, associer chaque affirmation à une citation courte ou à un exemple précis, puis commenter ce choix.",
     },
     {
         "keywords": ["oral", "confiance", "voix", "prise de parole"],
-        "point": "Un travail sur l'oral est signale.",
-        "advice": "Pour l'oral, preparer un plan tres bref, s'entrainer a formuler la premiere phrase et travailler une diction posee.",
+        "point": "Un travail sur l'oral est signalé.",
+        "advice": "Pour l'oral, préparer un plan très bref, s'entraîner à formuler la première phrase et travailler une diction posée.",
     },
     {
         "keywords": ["methode", "consigne"],
-        "point": "La methode ou le respect de la consigne est mentionne comme point de vigilance.",
-        "advice": "Pour consolider la methode, commencer par reformuler la consigne, reperer l'exercice attendu et verifier que chaque partie y repond.",
+        "point": "La méthode ou le respect de la consigne est mentionné comme point de vigilance.",
+        "advice": "Pour consolider la méthode, commencer par reformuler la consigne, repérer l'exercice attendu et vérifier que chaque partie y répond.",
     },
     {
         "keywords": ["rigueur", "serieux", "regularite"],
-        "point": "La rigueur ou la regularite est mentionnee comme point de vigilance.",
-        "advice": "Pour gagner en rigueur, prevoir une relecture methodique: consigne, plan, exemples, puis correction de la langue.",
+        "point": "La rigueur ou la régularité est mentionnée comme point de vigilance.",
+        "advice": "Pour gagner en rigueur, prévoir une relecture méthodique: consigne, plan, exemples, puis correction de la langue.",
     },
     {
         "keywords": ["vocabulaire", "lexique"],
-        "point": "Le vocabulaire est indique comme un axe de progression.",
-        "advice": "Pour enrichir le vocabulaire, tenir une courte liste de termes litteraires et les reutiliser dans les analyses.",
+        "point": "Le vocabulaire est indiqué comme un axe de progression.",
+        "advice": "Pour enrichir le vocabulaire, tenir une courte liste de termes littéraires et les réutiliser dans les analyses.",
     },
 ]
 
@@ -513,21 +768,21 @@ def build_grounded_opinion(strengths, vigilance_points, advice):
 
     if has_strengths and has_vigilance:
         return (
-            f"Les appreciations saisies font ressortir un point d'appui: {strengths[0]} "
+            f"Les appréciations saisies font ressortir un point d'appui: {strengths[0]} "
             f"Elles indiquent aussi un axe de travail: {vigilance_points[0]} "
             f"Le conseil prioritaire est le suivant: {advice[0] if has_advice else NO_EXPLICIT_ADVICE}"
         )
     if has_strengths:
         return (
-            f"Les appreciations saisies soulignent clairement ce point d'appui: {strengths[0]} "
-            "Aucun point de vigilance explicite n'y est formule."
+            f"Les appréciations saisies soulignent clairement ce point d'appui: {strengths[0]} "
+            "Aucun point de vigilance explicite n'y est formulé."
         )
     if has_vigilance:
         return (
-            f"Les appreciations saisies indiquent un axe de travail: {vigilance_points[0]} "
+            f"Les appréciations saisies indiquent un axe de travail: {vigilance_points[0]} "
             f"Le conseil prioritaire est le suivant: {advice[0] if has_advice else NO_EXPLICIT_ADVICE}"
         )
-    return "Les appreciations saisies ne contiennent pas encore d'indications qualitatives assez explicites pour etablir une synthese fiable."
+    return "Les appréciations saisies ne contiennent pas encore d'indications qualitatives assez explicites pour établir une synthèse fiable."
 
 
 def summarize_student(student, evaluations):
@@ -545,7 +800,7 @@ def summarize_student(student, evaluations):
             "strengths": [NO_EXPLICIT_STRENGTH],
             "weaknesses": [NO_EXPLICIT_VIGILANCE],
             "improvements": [NO_EXPLICIT_ADVICE],
-            "general_opinion": "Synthese indisponible tant qu'aucune evaluation n'a ete ajoutee.",
+            "general_opinion": "Synthèse indisponible tant qu'aucune évaluation n'a été ajoutée.",
         }
 
     normalized_scores = [score_percent(item) for item in evaluations]
@@ -640,24 +895,24 @@ def public_class_summary():
     top_strengths = [item for item in summary["top_strengths"] if item != NO_CLASS_STRENGTH_TREND]
     top_improvements = [item for item in summary["top_improvements"] if item != NO_CLASS_ADVICE_TREND]
     if summary["evaluations_count"] == 0:
-        general_opinion = "La synthese de classe sera plus parlante apres quelques evaluations supplementaires."
+        general_opinion = "La synthèse de classe sera plus parlante après quelques évaluations supplémentaires."
     elif top_strengths and top_improvements:
         general_opinion = (
-            f"Les appreciations de la classe font ressortir ce point d'appui: {top_strengths[0]} "
+            f"Les appréciations de la classe font ressortir ce point d'appui: {top_strengths[0]} "
             f"Elles orientent le travail vers ce conseil prioritaire: {top_improvements[0]}"
         )
     elif top_strengths:
         general_opinion = (
-            f"Les appreciations de la classe font ressortir ce point d'appui: {top_strengths[0]} "
-            "Aucun axe de conseil recurrent n'est formule explicitement."
+            f"Les appréciations de la classe font ressortir ce point d'appui: {top_strengths[0]} "
+            "Aucun axe de conseil récurrent n'est formulé explicitement."
         )
     elif top_improvements:
         general_opinion = (
-            "Les appreciations de la classe ne font pas encore ressortir de point d'appui recurrent explicite. "
+            "Les appréciations de la classe ne font pas encore ressortir de point d'appui récurrent explicite. "
             f"Elles orientent cependant le travail vers ce conseil prioritaire: {top_improvements[0]}"
         )
     else:
-        general_opinion = "Les appreciations saisies ne contiennent pas encore de tendance qualitative assez explicite pour etablir une synthese de classe fiable."
+        general_opinion = "Les appréciations saisies ne contiennent pas encore de tendance qualitative assez explicite pour établir une synthèse de classe fiable."
 
     return {
         "students_count": summary["students_count"],
@@ -700,14 +955,14 @@ def validate_evaluation_payload(payload):
         raise ValueError(f"Champs manquants: {', '.join(missing)}.")
     evaluation_type = payload["evaluation_type"]
     if evaluation_type not in {"ecrit", "oral"}:
-        raise ValueError("Type d'evaluation invalide.")
+        raise ValueError("Type d'évaluation invalide.")
     trimester = int(payload["trimester"])
     if trimester not in {1, 2, 3}:
         raise ValueError("Trimestre invalide.")
     score = float(payload["score"])
     max_score = float(payload["max_score"])
     if score < 0 or max_score <= 0 or score > max_score:
-        raise ValueError("La note doit etre comprise entre 0 et le bareme.")
+        raise ValueError("La note doit être comprise entre 0 et le barème.")
     return {
         "title": clean_text(payload["title"], 160),
         "evaluation_type": evaluation_type,
@@ -758,6 +1013,15 @@ class PrototypeHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _send_html(self, markup, status=HTTPStatus.OK):
+        body = markup.encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "public, max-age=300")
+        self.end_headers()
+        self.wfile.write(body)
+
     def _get_session_user(self):
         cookie_header = self.headers.get("Cookie")
         if not cookie_header:
@@ -787,7 +1051,7 @@ class PrototypeHandler(BaseHTTPRequestHandler):
             return None
         allowed_roles = {role} if isinstance(role, str) else set(role or [])
         if allowed_roles and user["role"] not in allowed_roles:
-            self._send_json({"error": "Acces non autorise."}, HTTPStatus.FORBIDDEN)
+            self._send_json({"error": "Accès non autorisé."}, HTTPStatus.FORBIDDEN)
             return None
         return user
 
@@ -797,6 +1061,14 @@ class PrototypeHandler(BaseHTTPRequestHandler):
             return self._send_json({"status": "ok"})
         if parsed.path == "/":
             return self._send_file(STATIC_DIR / "index.html")
+        if parsed.path == "/mentions-legales":
+            return self._send_html(render_mentions_legales())
+        if parsed.path == "/confidentialite":
+            return self._send_html(render_confidentialite())
+        if parsed.path == "/cookies":
+            return self._send_html(render_cookies())
+        if parsed.path == "/accessibilite":
+            return self._send_html(render_accessibilite())
         if parsed.path == "/styles.css":
             return self._send_file(STATIC_DIR / "styles.css", "text/css; charset=utf-8")
         if parsed.path == "/app.js":
@@ -824,10 +1096,10 @@ class PrototypeHandler(BaseHTTPRequestHandler):
                 return
             student_id = int(parsed.path.rsplit("/", 1)[-1])
             if user["role"] not in STAFF_ROLES and user["id"] != student_id:
-                return self._send_json({"error": "Acces non autorise."}, HTTPStatus.FORBIDDEN)
+                return self._send_json({"error": "Accès non autorisé."}, HTTPStatus.FORBIDDEN)
             student = get_user_by_id(student_id)
             if not student or student["role"] != "student":
-                return self._send_json({"error": "Eleve introuvable."}, HTTPStatus.NOT_FOUND)
+                return self._send_json({"error": "Élève introuvable."}, HTTPStatus.NOT_FOUND)
             return self._send_json({"summary": summarize_student(student, list_evaluations(student_id))})
         if parsed.path == "/api/class-summary":
             user = self._require_auth()
@@ -840,7 +1112,7 @@ class PrototypeHandler(BaseHTTPRequestHandler):
 
     def do_HEAD(self):
         parsed = urlparse(self.path)
-        if parsed.path in {"/", "/healthz"}:
+        if parsed.path in {"/", "/healthz", "/mentions-legales", "/confidentialite", "/cookies", "/accessibilite"}:
             self.send_response(HTTPStatus.OK)
             self.end_headers()
             return
@@ -860,7 +1132,7 @@ class PrototypeHandler(BaseHTTPRequestHandler):
         except ValueError as exc:
             return self._send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
         except psycopg.IntegrityError:
-            return self._send_json({"error": "Identifiant deja utilise."}, HTTPStatus.CONFLICT)
+            return self._send_json({"error": "Identifiant déjà utilisé."}, HTTPStatus.CONFLICT)
         self.send_error(HTTPStatus.NOT_FOUND)
 
     def do_PUT(self):
@@ -955,7 +1227,7 @@ class PrototypeHandler(BaseHTTPRequestHandler):
         data = validate_evaluation_payload(payload)
         student = get_user_by_id(student_id)
         if not student or student["role"] != "student":
-            raise ValueError("Eleve introuvable.")
+            raise ValueError("Élève introuvable.")
         with WRITE_LOCK:
             conn = get_db()
             try:
@@ -994,9 +1266,9 @@ class PrototypeHandler(BaseHTTPRequestHandler):
             return
         evaluation = get_evaluation_by_id(evaluation_id)
         if not evaluation:
-            return self._send_json({"error": "Evaluation introuvable."}, HTTPStatus.NOT_FOUND)
+            return self._send_json({"error": "Évaluation introuvable."}, HTTPStatus.NOT_FOUND)
         if user["role"] not in STAFF_ROLES and evaluation["student_id"] != user["id"]:
-            return self._send_json({"error": "Acces non autorise."}, HTTPStatus.FORBIDDEN)
+            return self._send_json({"error": "Accès non autorisé."}, HTTPStatus.FORBIDDEN)
         data = validate_evaluation_payload(parse_body(self))
         with WRITE_LOCK:
             conn = get_db()
@@ -1041,9 +1313,9 @@ class PrototypeHandler(BaseHTTPRequestHandler):
             return
         evaluation = get_evaluation_by_id(evaluation_id)
         if not evaluation:
-            return self._send_json({"error": "Evaluation introuvable."}, HTTPStatus.NOT_FOUND)
+            return self._send_json({"error": "Évaluation introuvable."}, HTTPStatus.NOT_FOUND)
         if user["role"] not in STAFF_ROLES and evaluation["student_id"] != user["id"]:
-            return self._send_json({"error": "Acces non autorise."}, HTTPStatus.FORBIDDEN)
+            return self._send_json({"error": "Accès non autorisé."}, HTTPStatus.FORBIDDEN)
         with WRITE_LOCK:
             conn = get_db()
             conn.execute("DELETE FROM evaluations WHERE id = %s", (evaluation_id,))
