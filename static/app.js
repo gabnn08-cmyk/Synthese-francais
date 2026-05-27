@@ -307,7 +307,7 @@ async function renderStudentDashboard() {
       ${renderTrimesterAverages(summary.stats.trimester_averages)}
       <section class="summary-grid">
         ${renderSummaryCard("Forces", summary.strengths)}
-        ${renderSummaryCard("Faiblesses", summary.weaknesses)}
+        ${renderSummaryCard("Points de vigilance", summary.weaknesses)}
         ${renderSummaryCard("Voies d'amelioration", summary.improvements)}
       </section>
       <section class="panel">
@@ -425,7 +425,7 @@ async function renderStaffDashboard() {
             ${renderTrimesterAverages(selectedSummary.stats.trimester_averages)}
             <section class="summary-grid">
               ${renderSummaryCard("Forces", selectedSummary.strengths)}
-              ${renderSummaryCard("Faiblesses", selectedSummary.weaknesses)}
+              ${renderSummaryCard("Points de vigilance", selectedSummary.weaknesses)}
               ${renderSummaryCard("Voies d'amelioration", selectedSummary.improvements)}
             </section>
             <section class="stat-card">

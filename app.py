@@ -332,9 +332,9 @@ def summarize_student(student, evaluations):
                 "oral_average": None,
                 "trimester_averages": empty_trimester_averages,
             },
-            "strengths": ["Aucune donnee pour le moment."],
-            "weaknesses": ["Aucune faiblesse detectee sans evaluations."],
-            "improvements": ["Saisir les premieres evaluations pour obtenir une synthese."],
+            "strengths": ["Aucune donnee exploitable pour le moment."],
+            "weaknesses": ["Aucun point de vigilance ne peut etre etabli sans evaluations."],
+            "improvements": ["Saisir les premieres evaluations pour obtenir une synthese pedagogique."],
             "general_opinion": "Synthese indisponible tant qu'aucune evaluation n'a ete ajoutee.",
         }
 
@@ -353,34 +353,34 @@ def summarize_student(student, evaluations):
     }
 
     if global_average is not None and global_average >= 13:
-        strengths.append("Resultats globalement solides en francais.")
+        strengths.append("Resultats globalement solides en francais, dans la perspective des exigences du bac.")
     elif global_average is not None and global_average < 10:
-        weaknesses.append("Moyenne generale fragile sur les evaluations saisies.")
+        weaknesses.append("Les resultats appellent une reprise methodique des attendus de Premiere generale.")
 
     if written_average is not None:
         if written_average >= 12:
-            strengths.append("Bonne maitrise des evaluations ecrites.")
+            strengths.append("Bonne maitrise des exercices ecrits attendus au bac de francais.")
         elif written_average < 10:
-            weaknesses.append("Des difficultes apparaissent a l'ecrit.")
-            improvements.append("Travailler la methode de redaction et l'organisation des idees.")
+            weaknesses.append("La methode des exercices ecrits doit etre reprise avec rigueur.")
+            improvements.append("Travailler la redaction, l'organisation des idees et la precision des references.")
 
     if oral_average is not None:
         if oral_average >= 14:
-            strengths.append("Aisance remarquable lors des prises de parole.")
+            strengths.append("Aisance remarquable lors des prises de parole, precieuse pour l'oral du bac.")
         elif oral_average < 10:
-            weaknesses.append("Les performances orales restent a consolider.")
-            improvements.append("S'entrainer a l'oral avec des prises de parole plus regulieres.")
+            weaknesses.append("L'oral reste a consolider pour atteindre les exigences de l'epreuve anticipee.")
+            improvements.append("S'entrainer a l'oral avec des prises de parole structurees et regulieres.")
 
     for evaluation in evaluations:
         strengths.extend(detect_positive_points(evaluation["appreciation"]))
         improvements.extend(detect_improvement_points(evaluation["appreciation"]))
 
     if not strengths:
-        strengths.append("Des points positifs existent mais demandent encore a se confirmer.")
+        strengths.append("Quelques acquis sont perceptibles mais doivent encore se confirmer.")
     if not weaknesses:
-        weaknesses.append("Pas de faiblesse majeure recurrente sur les donnees actuelles.")
+        weaknesses.append("Aucun point de vigilance majeur recurrent sur les donnees actuelles.")
     if not improvements:
-        improvements.append("Poursuivre les efforts de regularite et de precision.")
+        improvements.append("Poursuivre les efforts de regularite, de precision et de methode.")
 
     strengths = list(dict.fromkeys(strengths))[:4]
     weaknesses = list(dict.fromkeys(weaknesses))[:4]
@@ -389,13 +389,13 @@ def summarize_student(student, evaluations):
     if global_average is None:
         opinion = "Les donnees sont encore insuffisantes pour une tendance generale."
     elif global_average >= 15:
-        opinion = "Avis general tres positif: eleve autonome, regulier et convaincant."
+        opinion = "Avis de professeure agregee de francais au lycee Saint-Louis de Gonzague: excellent ensemble, autonome, regulier et convaincant."
     elif global_average >= 12:
-        opinion = "Avis general positif: ensemble serieux avec une progression encourageante."
+        opinion = "Avis exigeant et positif, dans le cadre du lycee Saint-Louis de Gonzague: travail serieux, acquis solides et progression encourageante pour le bac."
     elif global_average >= 10:
-        opinion = "Avis general nuance: bases presentes, mais une progression reste attendue."
+        opinion = "Avis nuance, au niveau d'exigence du lycee Saint-Louis de Gonzague: les bases sont presentes, mais les attendus de Premiere generale demandent davantage de rigueur."
     else:
-        opinion = "Avis general reserve: un accompagnement plus soutenu semble necessaire."
+        opinion = "Avis exigeant, au niveau d'une Premiere generale du lycee Saint-Louis de Gonzague: les attendus ne sont pas encore suffisamment stabilises; priorite a la methode, a la precision et a la regularite."
 
     return {
         "student": student,
@@ -456,13 +456,13 @@ def public_class_summary():
     if class_average is None:
         general_opinion = "La synthese de classe sera plus parlante apres quelques evaluations supplementaires."
     elif class_average >= 14:
-        general_opinion = "La dynamique de classe est tres positive avec un niveau d'ensemble solide."
+        general_opinion = "La dynamique de classe est tres positive, avec un niveau d'ensemble solide pour preparer le bac de francais au lycee Saint-Louis de Gonzague."
     elif class_average >= 12:
-        general_opinion = "La classe montre des acquis encourageants et une base de travail serieuse."
+        general_opinion = "La classe montre des acquis encourageants et une base de travail serieuse, conforme a l'ambition d'une Premiere generale au lycee Saint-Louis de Gonzague."
     elif class_average >= 10:
-        general_opinion = "Le niveau de classe reste heterogene, avec une marge de progression identifiable."
+        general_opinion = "Le niveau de classe reste heterogene; la progression devra porter sur la methode, la precision et la qualite de l'expression."
     else:
-        general_opinion = "La classe semble avoir besoin d'un accompagnement plus soutenu sur plusieurs competences."
+        general_opinion = "La classe doit consolider plusieurs competences essentielles pour aborder le bac avec davantage de maitrise."
 
     return {
         "students_count": summary["students_count"],
