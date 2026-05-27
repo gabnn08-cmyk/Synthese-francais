@@ -6,6 +6,12 @@ const state = {
   selectedStudentId: null,
 };
 
+const STAFF_ROLES = new Set(["admin", "teacher"]);
+
+function isStaff(user = state.user) {
+  return STAFF_ROLES.has(user?.role);
+}
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -31,6 +37,19 @@ async function api(path, options = {}) {
 
 function numberOrDash(value) {
   return value === null || value === undefined ? "-" : `${value.toFixed(2)}/20`;
+}
+
+function renderTrimesterAverages(trimesterAverages = {}) {
+  return `
+    <section class="stats-grid">
+      ${[1, 2, 3].map((trimester) => `
+        <article class="stat-card">
+          <p class="stat-label">Moyenne T${trimester}</p>
+          <p class="stat-value">${numberOrDash(trimesterAverages[String(trimester)])}</p>
+        </article>
+      `).join("")}
+    </section>
+  `;
 }
 
 function renderSummaryCard(title, items) {
@@ -114,6 +133,14 @@ function studentFormMarkup(isTeacher = false) {
         </select>
       </label>
       <label>
+        Trimestre
+        <select name="trimester" required>
+          <option value="1">Trimestre 1</option>
+          <option value="2">Trimestre 2</option>
+          <option value="3">Trimestre 3</option>
+        </select>
+      </label>
+      <label>
         Domaine
         <input name="subject_area" type="text" placeholder="Analyse litteraire" required>
       </label>
@@ -175,6 +202,7 @@ function evaluationsTable(evaluations) {
             <th>Date</th>
             <th>Evaluation</th>
             <th>Type</th>
+            <th>Trimestre</th>
             <th>Note</th>
             <th>Appreciation</th>
           </tr>
@@ -185,6 +213,7 @@ function evaluationsTable(evaluations) {
               <td>${escapeHtml(evaluation.evaluation_date)}</td>
               <td><strong>${escapeHtml(evaluation.title)}</strong><br><span class="muted">${escapeHtml(evaluation.subject_area)}</span></td>
               <td><span class="badge">${escapeHtml(evaluation.evaluation_type)}</span></td>
+              <td><span class="badge">T${escapeHtml(evaluation.trimester || 1)}</span></td>
               <td>${escapeHtml(evaluation.score)}/${escapeHtml(evaluation.max_score)}</td>
               <td>${escapeHtml(evaluation.appreciation)}</td>
             </tr>`).join("")}
@@ -219,6 +248,7 @@ async function renderStudentDashboard() {
         <article class="stat-card"><p class="stat-label">Moyenne orale</p><p class="stat-value">${numberOrDash(summary.stats.oral_average)}</p></article>
         <article class="stat-card"><p class="stat-label">Evaluations saisies</p><p class="stat-value">${summary.stats.evaluations_count}</p></article>
       </section>
+      ${renderTrimesterAverages(summary.stats.trimester_averages)}
       <section class="summary-grid">
         ${renderSummaryCard("Forces", summary.strengths)}
         ${renderSummaryCard("Faiblesses", summary.weaknesses)}
@@ -240,6 +270,7 @@ async function renderStudentDashboard() {
           <article class="stat-card"><p class="stat-label">Moyenne de classe</p><p class="stat-value">${classSummary.class_average === null ? "-" : `${classSummary.class_average.toFixed(2)}/20`}</p></article>
           <article class="stat-card"><p class="stat-label">Evaluations recensees</p><p class="stat-value">${classSummary.evaluations_count}</p></article>
         </section>
+        ${renderTrimesterAverages(classSummary.trimester_averages)}
         <section class="summary-grid">
           ${renderSummaryCard("Forces recurrentes", classSummary.top_strengths)}
           ${renderSummaryCard("Axes d'amelioration recurrents", classSummary.top_improvements)}
@@ -272,7 +303,7 @@ function teacherStudentButtons() {
   `).join("");
 }
 
-async function renderTeacherDashboard() {
+async function renderStaffDashboard() {
   const [{ students }, { summary }] = await Promise.all([
     api("/api/students"),
     api("/api/class-summary"),
@@ -296,7 +327,7 @@ async function renderTeacherDashboard() {
       <div class="panel">
         <div class="toolbar">
           <div>
-            <p class="eyebrow">Espace professeure</p>
+            <p class="eyebrow">${state.user.role === "admin" ? "Espace administration" : "Espace professeure"}</p>
             <h2>${escapeHtml(state.user.full_name)}</h2>
             <p class="muted">Vue globale de la classe et lecture des syntheses individuelles.</p>
           </div>
@@ -308,6 +339,7 @@ async function renderTeacherDashboard() {
         <article class="stat-card"><p class="stat-label">Evaluations totales</p><p class="stat-value">${summary.evaluations_count}</p></article>
         <article class="stat-card"><p class="stat-label">Moyenne de classe</p><p class="stat-value">${summary.class_average === null ? "-" : `${summary.class_average.toFixed(2)}/20`}</p></article>
       </section>
+      ${renderTrimesterAverages(summary.trimester_averages)}
       <section class="summary-grid">
         ${renderSummaryCard("Forces recurrentes", summary.top_strengths)}
         ${renderSummaryCard("Axes d'amelioration recurrents", summary.top_improvements)}
@@ -333,6 +365,7 @@ async function renderTeacherDashboard() {
               <article class="stat-card"><p class="stat-label">Ecrit</p><p class="stat-value">${numberOrDash(selectedSummary.stats.written_average)}</p></article>
               <article class="stat-card"><p class="stat-label">Oral</p><p class="stat-value">${numberOrDash(selectedSummary.stats.oral_average)}</p></article>
             </section>
+            ${renderTrimesterAverages(selectedSummary.stats.trimester_averages)}
             <section class="summary-grid">
               ${renderSummaryCard("Forces", selectedSummary.strengths)}
               ${renderSummaryCard("Faiblesses", selectedSummary.weaknesses)}
@@ -356,10 +389,10 @@ async function renderTeacherDashboard() {
   document.querySelectorAll("[data-student-id]").forEach((button) => {
     button.addEventListener("click", () => {
       state.selectedStudentId = Number(button.dataset.studentId);
-      renderTeacherDashboard();
+      renderStaffDashboard();
     });
   });
-  await attachEvaluationForm({ isTeacher: true, onSuccess: renderTeacherDashboard });
+  await attachEvaluationForm({ isTeacher: true, onSuccess: renderStaffDashboard });
 }
 
 async function logout() {
@@ -377,8 +410,8 @@ async function boot() {
       renderLogin();
       return;
     }
-    if (state.user.role === "teacher") {
-      await renderTeacherDashboard();
+    if (isStaff()) {
+      await renderStaffDashboard();
       return;
     }
     await renderStudentDashboard();

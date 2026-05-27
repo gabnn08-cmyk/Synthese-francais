@@ -22,8 +22,14 @@ services:
       - key: DEMO_MODE
         value: "false"
       - key: ADMIN_USERNAME
-        value: prof.francais
+        value: admin
       - key: ADMIN_FULL_NAME
-        value: Professeur de francais
+        value: Administrateur
       - key: ADMIN_PASSWORD
+        sync: false
+      - key: TEACHER_USERNAME
+        value: prof.francais
+      - key: TEACHER_FULL_NAME
+        value: Professeur de francais
+      - key: TEACHER_PASSWORD
         sync: false

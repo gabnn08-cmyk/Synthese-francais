@@ -1,11 +1,11 @@
 # Synthese des evaluations de francais
 
-Application web legere pour une classe: les eleves creent un compte, saisissent leurs evaluations de francais, consultent leur synthese personnelle, et la professeure voit la classe complete.
+Application web legere pour une classe: les eleves creent un compte, saisissent leurs evaluations de francais, consultent leur synthese personnelle, et la professeure ou l'administrateur voit la classe complete.
 
 ## Ce qui est pret pour un usage reel
 
 - comptes eleves independants avec inscription autonome ;
-- compte professeure cree au demarrage via variables d'environnement ;
+- comptes administrateur et professeure distincts, crees au demarrage via variables d'environnement ;
 - mots de passe hashes avec PBKDF2 ;
 - sessions stockees en base, persistantes entre redemarrages ;
 - base PostgreSQL Supabase via `DATABASE_URL` ;
@@ -25,15 +25,17 @@ Definir l'URL PostgreSQL, puis lancer l'application:
 ```powershell
 $env:DATABASE_URL="postgresql://user:password@localhost:5432/synthese_francais"
 $env:DATABASE_SCHEMA="public"
+$env:ADMIN_PASSWORD="change-me-before-deploy"
+$env:TEACHER_PASSWORD="change-me-before-deploy-too"
 python app.py
 ```
 
 Puis ouvrir `http://127.0.0.1:8000`.
 
-Par defaut, le compte professeure local est:
+Par defaut, les comptes locaux sont:
 
-- identifiant: `prof.francais`
-- mot de passe: `change-me-before-deploy`
+- administrateur: identifiant `admin`, mot de passe `ADMIN_PASSWORD`
+- professeure: identifiant `prof.francais`, mot de passe `TEACHER_PASSWORD` si defini, sinon `ADMIN_PASSWORD`
 
 Pour activer les comptes de demonstration locaux:
 
@@ -62,9 +64,12 @@ DATABASE_SSLMODE=require
 DATABASE_SCHEMA=app_private
 COOKIE_SECURE=true
 DEMO_MODE=false
-ADMIN_USERNAME=prof.francais
-ADMIN_FULL_NAME=Professeur de francais
+ADMIN_USERNAME=admin
+ADMIN_FULL_NAME=Administrateur
 ADMIN_PASSWORD=mot-de-passe-fort
+TEACHER_USERNAME=prof.francais
+TEACHER_FULL_NAME=Professeur de francais
+TEACHER_PASSWORD=autre-mot-de-passe-fort
 ```
 
 L'application cree automatiquement le schema et les tables au demarrage. Si tu preferes les creer manuellement, coller [supabase/schema.sql](C:/Users/gabri/Documents/New%20project/supabase/schema.sql) dans le SQL Editor de Supabase.
@@ -92,9 +97,12 @@ python migrate_sqlite_to_postgres.py
 - `DATABASE_URL`: URL de connexion PostgreSQL Supabase, obligatoire
 - `DATABASE_SSLMODE`: mode SSL, `require` recommande pour Supabase
 - `DATABASE_SCHEMA`: schema utilise par l'application, `app_private` recommande sur Supabase
-- `ADMIN_USERNAME`: identifiant professeure, par defaut `prof.francais`
-- `ADMIN_PASSWORD`: mot de passe initial du compte professeure
-- `ADMIN_FULL_NAME`: nom affiche pour le compte professeure
+- `ADMIN_USERNAME`: identifiant administrateur, par defaut `admin`
+- `ADMIN_PASSWORD`: mot de passe initial du compte administrateur
+- `ADMIN_FULL_NAME`: nom affiche pour le compte administrateur
+- `TEACHER_USERNAME`: identifiant professeure, par defaut `prof.francais`
+- `TEACHER_PASSWORD`: mot de passe initial du compte professeure, par defaut identique a `ADMIN_PASSWORD` si absent
+- `TEACHER_FULL_NAME`: nom affiche pour le compte professeure
 - `COOKIE_SECURE`: `true` en production HTTPS, `false` en local si besoin
 - `DEMO_MODE`: `true` uniquement pour creer les comptes de demonstration
 - `PROTOTYPE_DB_PATH`: chemin de l'ancienne base SQLite, utilise seulement par le script de migration
@@ -109,7 +117,7 @@ Etapes:
 2. Copier la connection string `Session pooler` depuis Supabase.
 3. Pousser ce dossier dans un depot GitHub.
 4. Dans Render, creer un Blueprint depuis le depot.
-5. Renseigner `DATABASE_URL` et `ADMIN_PASSWORD` dans les variables d'environnement Render.
+5. Renseigner `DATABASE_URL`, `ADMIN_PASSWORD` et `TEACHER_PASSWORD` dans les variables d'environnement Render.
 6. Deployer.
 7. Verifier `/healthz`, puis tester une connexion professeure.
 
@@ -125,4 +133,5 @@ Tester ensuite:
 - creation d'un compte eleve ;
 - ajout d'une evaluation ;
 - deconnexion/reconnexion ;
-- connexion professeure et consultation de la liste des eleves.
+- connexion professeure et consultation de la liste des eleves ;
+- connexion administrateur avec un compte distinct.
