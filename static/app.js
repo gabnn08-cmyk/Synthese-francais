@@ -175,7 +175,7 @@ function studentFormMarkup(isTeacher = false, evaluation = null) {
         <button type="submit" class="primary-button">${isEditing ? "Enregistrer les modifications" : "Ajouter l'evaluation"}</button>
         ${isEditing ? `<button type="button" id="cancel-edit-button" class="ghost-button">Annuler</button>` : ""}
       </div>
-      <p id="form-message" class="message"></p>
+      <p id="form-message" class="message" aria-live="polite"></p>
     </form>
   `;
 }

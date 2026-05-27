@@ -17,11 +17,41 @@
 body {
   margin: 0;
   min-height: 100vh;
-  font-family: "Manrope", sans-serif;
+  font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   color: var(--text);
   overflow-x: hidden;
   background:
     linear-gradient(135deg, #f7f8f5 0%, #eef4f1 48%, #f8f3e8 100%);
+}
+
+a {
+  color: var(--accent);
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 3px solid rgba(46, 111, 115, 0.35);
+  outline-offset: 3px;
+}
+
+.skip-link {
+  position: absolute;
+  left: 16px;
+  top: -48px;
+  z-index: 10;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: #ffffff;
+  color: var(--text);
+  text-decoration: none;
+  box-shadow: var(--shadow);
+}
+
+.skip-link:focus {
+  top: 16px;
 }
 
 .page-shell {
@@ -38,7 +68,7 @@ body {
 h2,
 h3 {
   margin: 0;
-  font-family: "Fraunces", serif;
+  font-family: Georgia, "Times New Roman", serif;
   letter-spacing: 0;
 }
 
@@ -97,6 +127,10 @@ button {
 .auth-panel {
   max-width: 460px;
   width: 100%;
+}
+
+.hero-compact {
+  margin-bottom: 20px;
 }
 
 .stack,
@@ -214,6 +248,15 @@ button {
   color: #a12828;
 }
 
+.notice {
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(46, 111, 115, 0.08);
+  color: var(--muted);
+  line-height: 1.5;
+}
+
 .summary-list {
   margin: 12px 0 0;
   padding-left: 18px;
@@ -272,6 +315,52 @@ td {
   font-style: italic;
 }
 
+.site-footer,
+.legal-layout {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  border-radius: 8px;
+}
+
+.site-footer {
+  margin-top: 24px;
+  padding: 20px 24px;
+}
+
+.footer-title {
+  margin: 0 0 12px;
+  font-weight: 700;
+}
+
+.footer-links,
+.compliance-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+}
+
+.footer-links a,
+.compliance-nav a {
+  text-underline-offset: 3px;
+}
+
+.legal-layout {
+  padding: 24px;
+  display: grid;
+  gap: 20px;
+}
+
+.legal-section {
+  display: grid;
+  gap: 8px;
+}
+
+.legal-section p {
+  margin: 0;
+  line-height: 1.6;
+}
+
 @media (max-width: 900px) {
   .page-shell {
     width: min(100% - 24px, 1180px);
@@ -288,6 +377,12 @@ td {
 
   .teacher-grid {
     grid-template-columns: 1fr;
+  }
+
+  .footer-links,
+  .compliance-nav {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
 
