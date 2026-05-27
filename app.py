@@ -1,5 +1,6 @@
 import hashlib
 import hmac
+import html
 import json
 import os
 import re
@@ -28,6 +29,23 @@ STATIC_DIR = BASE_DIR / "static"
 SESSION_DAYS = int(os.environ.get("SESSION_DAYS", "14"))
 COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "auto").lower()
 DEMO_MODE = os.environ.get("DEMO_MODE", "false").lower() in {"1", "true", "yes"}
+SITE_NAME = os.environ.get("SITE_NAME", "Synthese de francais")
+SITE_URL = os.environ.get("SITE_URL", "")
+LEGAL_ENTITY_NAME = os.environ.get("LEGAL_ENTITY_NAME", "Etablissement responsable du service")
+LEGAL_ENTITY_STATUS = os.environ.get("LEGAL_ENTITY_STATUS", "Etablissement scolaire")
+LEGAL_ENTITY_ADDRESS = os.environ.get("LEGAL_ENTITY_ADDRESS", "Adresse a completer")
+LEGAL_CONTACT_EMAIL = os.environ.get("LEGAL_CONTACT_EMAIL", "contact@example.fr")
+LEGAL_CONTACT_PHONE = os.environ.get("LEGAL_CONTACT_PHONE", "Telephone a completer")
+LEGAL_PUBLICATION_DIRECTOR = os.environ.get("LEGAL_PUBLICATION_DIRECTOR", "Responsable de publication a completer")
+LEGAL_DPO_CONTACT = os.environ.get("LEGAL_DPO_CONTACT", LEGAL_CONTACT_EMAIL)
+HOSTING_PROVIDER_NAME = os.environ.get("HOSTING_PROVIDER_NAME", "Hebergeur a completer")
+HOSTING_PROVIDER_ADDRESS = os.environ.get("HOSTING_PROVIDER_ADDRESS", "Adresse de l'hebergeur a completer")
+HOSTING_PROVIDER_PHONE = os.environ.get("HOSTING_PROVIDER_PHONE", "Telephone de l'hebergeur a completer")
+PRIVACY_ACCOUNT_RETENTION = os.environ.get("PRIVACY_ACCOUNT_RETENTION", "jusqu'a 12 mois apres la derniere activite du compte")
+PRIVACY_EVALUATION_RETENTION = os.environ.get("PRIVACY_EVALUATION_RETENTION", "pendant l'annee scolaire en cours puis selon la politique de l'etablissement")
+PRIVACY_SESSION_RETENTION = os.environ.get("PRIVACY_SESSION_RETENTION", f"{SESSION_DAYS} jours maximum")
+ACCESSIBILITY_CONTACT = os.environ.get("ACCESSIBILITY_CONTACT", LEGAL_CONTACT_EMAIL)
+ACCESSIBILITY_MULTIYEAR_PLAN_URL = os.environ.get("ACCESSIBILITY_MULTIYEAR_PLAN_URL", "")
 ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD = os.environ["ADMIN_PASSWORD"]
 ADMIN_FULL_NAME = os.environ.get("ADMIN_FULL_NAME", "Administrateur")
@@ -44,6 +62,243 @@ def utc_now():
 
 def iso_now():
     return utc_now().isoformat()
+
+
+def escape_html(value):
+    return html.escape(str(value or ""), quote=True)
+
+
+def format_contact_link(value):
+    safe_value = escape_html(value)
+    if "@" in value:
+        return f'<a href="mailto:{safe_value}">{safe_value}</a>'
+    return safe_value
+
+
+def compliance_navigation():
+    return (
+        '<nav class="compliance-nav" aria-label="Informations legales">'
+        '<a href="/">Accueil</a>'
+        '<a href="/mentions-legales">Mentions legales</a>'
+        '<a href="/confidentialite">Confidentialite</a>'
+        '<a href="/cookies">Cookies</a>'
+        '<a href="/accessibilite">Accessibilite : non conforme</a>'
+        "</nav>"
+    )
+
+
+def render_information_page(title, intro, sections):
+    rendered_sections = []
+    for heading, paragraphs in sections:
+        content = "".join(f"<p>{paragraph}</p>" for paragraph in paragraphs)
+        rendered_sections.append(f'<section class="legal-section"><h2>{heading}</h2>{content}</section>')
+    body = "".join(rendered_sections)
+    return f"""<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{escape_html(title)} | {escape_html(SITE_NAME)}</title>
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#content">Aller au contenu principal</a>
+  <div class="page-shell">
+    <header class="hero hero-compact">
+      <p class="eyebrow">Information reglementaire</p>
+      <h1>{escape_html(title)}</h1>
+      <p class="hero-copy">{intro}</p>
+      {compliance_navigation()}
+    </header>
+    <main id="content" class="legal-layout" tabindex="-1">
+      {body}
+    </main>
+  </div>
+</body>
+</html>"""
+
+
+def render_mentions_legales():
+    site_reference = escape_html(SITE_URL) if SITE_URL else "Adresse du site a completer"
+    return render_information_page(
+        "Mentions legales",
+        "Cette page regroupe les informations d'identification de l'editeur du service, du responsable de publication et de son hebergeur.",
+        [
+            (
+                "Editeur du service",
+                [
+                    f"<strong>Nom de l'organisme :</strong> {escape_html(LEGAL_ENTITY_NAME)}",
+                    f"<strong>Statut :</strong> {escape_html(LEGAL_ENTITY_STATUS)}",
+                    f"<strong>Adresse :</strong> {escape_html(LEGAL_ENTITY_ADDRESS)}",
+                    f"<strong>Courriel :</strong> {format_contact_link(LEGAL_CONTACT_EMAIL)}",
+                    f"<strong>Telephone :</strong> {escape_html(LEGAL_CONTACT_PHONE)}",
+                    f"<strong>Adresse du site :</strong> {site_reference}",
+                ],
+            ),
+            (
+                "Direction de la publication",
+                [f"<strong>Responsable de publication :</strong> {escape_html(LEGAL_PUBLICATION_DIRECTOR)}"],
+            ),
+            (
+                "Hebergement",
+                [
+                    f"<strong>Hebergeur :</strong> {escape_html(HOSTING_PROVIDER_NAME)}",
+                    f"<strong>Adresse :</strong> {escape_html(HOSTING_PROVIDER_ADDRESS)}",
+                    f"<strong>Telephone :</strong> {escape_html(HOSTING_PROVIDER_PHONE)}",
+                ],
+            ),
+            (
+                "Propriete intellectuelle",
+                [
+                    "Les contenus fournis dans ce service sont reserves a un usage pedagogique interne, sauf mention contraire.",
+                    "Toute reutilisation externe des textes, evaluations ou donnees nominatives doit etre autorisee par l'organisme responsable du service.",
+                ],
+            ),
+        ],
+    )
+
+
+def render_confidentialite():
+    return render_information_page(
+        "Politique de confidentialite",
+        "Le service traite des donnees personnelles d'eleves et de membres de l'equipe pedagogique pour permettre l'authentification, la saisie d'evaluations et la consultation de syntheses.",
+        [
+            (
+                "Responsable du traitement",
+                [
+                    f"Le responsable du traitement est <strong>{escape_html(LEGAL_ENTITY_NAME)}</strong>, joignable a l'adresse {format_contact_link(LEGAL_CONTACT_EMAIL)}.",
+                    f"Pour toute question relative a la protection des donnees, vous pouvez contacter le point de contact RGPD a l'adresse {format_contact_link(LEGAL_DPO_CONTACT)}.",
+                ],
+            ),
+            (
+                "Donnees traitees",
+                [
+                    "Le service traite les donnees d'identification du compte, les mots de passe sous forme hachee, les donnees de session techniques, ainsi que les evaluations pedagogiques saisies dans l'application.",
+                ],
+            ),
+            (
+                "Finalites et bases legales",
+                [
+                    "Les donnees sont traitees pour creer les comptes, authentifier les utilisateurs, permettre la saisie et la consultation des evaluations, ainsi que produire des syntheses pedagogiques.",
+                    "La base legale est l'execution d'une mission d'interet public ou l'interet legitime de l'organisme gestionnaire, selon le cadre d'utilisation effectif du service dans l'etablissement.",
+                ],
+            ),
+            (
+                "Caractere obligatoire des donnees",
+                [
+                    "Les informations demandees lors de la creation d'un compte sont necessaires pour ouvrir l'acces au service et rattacher les evaluations au bon eleve.",
+                    "En l'absence de ces informations, le compte ne peut pas etre cree.",
+                ],
+            ),
+            (
+                "Destinataires",
+                [
+                    "Les donnees sont accessibles aux eleves pour leur propre espace, ainsi qu'aux personnels autorises disposant d'un role administrateur ou professeure dans l'application.",
+                    "L'hebergeur et les prestataires techniques agissent, le cas echeant, en qualite de sous-traitants pour la mise a disposition du service.",
+                ],
+            ),
+            (
+                "Durees de conservation",
+                [
+                    f"Les comptes utilisateurs sont conserves {escape_html(PRIVACY_ACCOUNT_RETENTION)}.",
+                    f"Les evaluations sont conservees {escape_html(PRIVACY_EVALUATION_RETENTION)}.",
+                    f"Les sessions d'authentification sont conservees {escape_html(PRIVACY_SESSION_RETENTION)}.",
+                ],
+            ),
+            (
+                "Droits des personnes",
+                [
+                    "Vous disposez d'un droit d'acces, de rectification, d'effacement, de limitation et, selon la base legale applicable, d'un droit d'opposition.",
+                    f"Ces droits peuvent etre exerces en ecrivant a {format_contact_link(LEGAL_DPO_CONTACT)}.",
+                    'Vous pouvez egalement introduire une reclamation aupres de la <a href="https://www.cnil.fr/fr/plaintes" rel="noreferrer" target="_blank">CNIL</a>.',
+                ],
+            ),
+            (
+                "Transferts hors Union europeenne",
+                [
+                    "Le service est concu pour limiter les transferts hors Union europeenne. En cas d'utilisation d'un prestataire impliquant un transfert, l'information correspondante et les garanties applicables devront etre communiquees sur cette page.",
+                ],
+            ),
+        ],
+    )
+
+
+def render_cookies():
+    return render_information_page(
+        "Politique cookies",
+        "Le site utilise uniquement les traceurs strictement necessaires a son fonctionnement, sauf ajout ulterieur d'outils necessitant un consentement prealable.",
+        [
+            (
+                "Cookie necessaire",
+                [
+                    f"Un cookie de session d'authentification nomme <code>session_token</code> est depose pour maintenir la connexion pendant une duree maximale de {SESSION_DAYS} jours.",
+                    "Ce cookie est utilise exclusivement pour l'authentification et la securite du service. Il ne sert ni a la publicite ni a la mesure d'audience.",
+                ],
+            ),
+            (
+                "Absence de traceurs marketing",
+                [
+                    "Aucun cookie publicitaire, aucun traceur de reseau social et aucun outil de mesure d'audience soumis au consentement n'est depose par defaut.",
+                    "Si de nouveaux traceurs non strictement necessaires sont ajoutes, un mecanisme de recueil du consentement devra etre mis en place avant leur depot.",
+                ],
+            ),
+            (
+                "Gestion des preferences",
+                [
+                    "Comme seuls des traceurs strictement necessaires sont utilises a ce jour, aucune banniere de consentement n'est affichee.",
+                    f"Pour toute question, vous pouvez ecrire a {format_contact_link(LEGAL_CONTACT_EMAIL)}.",
+                ],
+            ),
+        ],
+    )
+
+
+def render_accessibilite():
+    action_plan = (
+        f'Le schema pluriannuel de mise en accessibilite est consultable a l\'adresse <a href="{escape_html(ACCESSIBILITY_MULTIYEAR_PLAN_URL)}">{escape_html(ACCESSIBILITY_MULTIYEAR_PLAN_URL)}</a>.'
+        if ACCESSIBILITY_MULTIYEAR_PLAN_URL
+        else "Le schema pluriannuel de mise en accessibilite n'est pas encore publie sur ce service."
+    )
+    return render_information_page(
+        "Accessibilite numerique",
+        "Etat de conformite au RGAA au 27 mai 2026 : non conforme. Aucun audit complet n'a encore permis d'etablir un taux de conformite opposable.",
+        [
+            (
+                "Declaration de conformite",
+                [
+                    "Cette declaration s'applique au service web de synthese des evaluations de francais.",
+                    "Faute d'audit complet, le service est actuellement declare non conforme au Referentiel general d'amelioration de l'accessibilite.",
+                ],
+            ),
+            (
+                "Contenus non accessibles identifies a ce stade",
+                [
+                    "Certaines restitutions dynamiques JavaScript n'ont pas encore fait l'objet d'une validation complete avec technologies d'assistance.",
+                    "Les parcours de tableau et certains messages de statut doivent encore etre testes et, si necessaire, ajustes apres audit.",
+                ],
+            ),
+            (
+                "Ameliorations deja mises en place",
+                [
+                    "Le site est en francais, dispose d'un lien d'evitement, d'une navigation visible vers les pages reglementaires et de messages d'erreur prevus pour etre annonces aux technologies d'assistance.",
+                ],
+            ),
+            (
+                "Retour d'information et contact",
+                [
+                    f"Si vous ne parvenez pas a acceder a un contenu ou a un service, vous pouvez contacter {format_contact_link(ACCESSIBILITY_CONTACT)} pour etre oriente vers une alternative accessible ou obtenir le contenu sous une autre forme.",
+                ],
+            ),
+            (
+                "Voies de recours",
+                [
+                    "Si vous constatez un defaut d'accessibilite vous empechant d'acceder a un contenu et que vous ne recevez pas de reponse satisfaisante, vous pouvez saisir le Defenseur des droits.",
+                    action_plan,
+                ],
+            ),
+        ],
+    )
 
 
 def get_db():
@@ -758,6 +1013,15 @@ class PrototypeHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _send_html(self, markup, status=HTTPStatus.OK):
+        body = markup.encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "public, max-age=300")
+        self.end_headers()
+        self.wfile.write(body)
+
     def _get_session_user(self):
         cookie_header = self.headers.get("Cookie")
         if not cookie_header:
@@ -797,6 +1061,14 @@ class PrototypeHandler(BaseHTTPRequestHandler):
             return self._send_json({"status": "ok"})
         if parsed.path == "/":
             return self._send_file(STATIC_DIR / "index.html")
+        if parsed.path == "/mentions-legales":
+            return self._send_html(render_mentions_legales())
+        if parsed.path == "/confidentialite":
+            return self._send_html(render_confidentialite())
+        if parsed.path == "/cookies":
+            return self._send_html(render_cookies())
+        if parsed.path == "/accessibilite":
+            return self._send_html(render_accessibilite())
         if parsed.path == "/styles.css":
             return self._send_file(STATIC_DIR / "styles.css", "text/css; charset=utf-8")
         if parsed.path == "/app.js":
@@ -840,7 +1112,7 @@ class PrototypeHandler(BaseHTTPRequestHandler):
 
     def do_HEAD(self):
         parsed = urlparse(self.path)
-        if parsed.path in {"/", "/healthz"}:
+        if parsed.path in {"/", "/healthz", "/mentions-legales", "/confidentialite", "/cookies", "/accessibilite"}:
             self.send_response(HTTPStatus.OK)
             self.end_headers()
             return
