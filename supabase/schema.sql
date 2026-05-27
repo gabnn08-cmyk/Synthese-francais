@@ -6,7 +6,7 @@ create table if not exists app_private.users (
     password text not null default '',
     password_hash text,
     full_name text not null,
-    role text not null check (role in ('teacher', 'student')),
+    role text not null check (role in ('admin', 'teacher', 'student')),
     created_at text not null default ''
 );
 
@@ -15,6 +15,7 @@ create table if not exists app_private.evaluations (
     student_id integer not null references app_private.users(id) on delete cascade,
     title text not null,
     evaluation_type text not null check (evaluation_type in ('ecrit', 'oral')),
+    trimester integer not null default 1 check (trimester in (1, 2, 3)),
     subject_area text not null,
     evaluation_date text not null,
     score double precision not null check (score >= 0),

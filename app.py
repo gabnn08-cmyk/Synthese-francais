@@ -13,6 +13,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 import psycopg
+from psycopg import sql
 from psycopg.conninfo import conninfo_to_dict, make_conninfo
 from psycopg.rows import dict_row
 
@@ -26,9 +27,13 @@ STATIC_DIR = BASE_DIR / "static"
 SESSION_DAYS = int(os.environ.get("SESSION_DAYS", "14"))
 COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "auto").lower()
 DEMO_MODE = os.environ.get("DEMO_MODE", "false").lower() in {"1", "true", "yes"}
-ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "prof.francais")
+ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD = os.environ["ADMIN_PASSWORD"]
-ADMIN_FULL_NAME = os.environ.get("ADMIN_FULL_NAME", "Professeur de francais")
+ADMIN_FULL_NAME = os.environ.get("ADMIN_FULL_NAME", "Administrateur")
+TEACHER_USERNAME = os.environ.get("TEACHER_USERNAME", "prof.francais")
+TEACHER_PASSWORD = os.environ.get("TEACHER_PASSWORD", ADMIN_PASSWORD)
+TEACHER_FULL_NAME = os.environ.get("TEACHER_FULL_NAME", "Professeur de francais")
+STAFF_ROLES = {"admin", "teacher"}
 WRITE_LOCK = threading.Lock()
 
 
@@ -91,6 +96,20 @@ def add_column_if_missing(conn, table, column, definition):
         conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
 
+def ensure_user_role_constraint(conn):
+    constraints = conn.execute(
+        """
+        SELECT conname
+        FROM pg_constraint
+        WHERE conrelid = %s::regclass AND contype = 'c' AND pg_get_constraintdef(oid) LIKE %s
+        """,
+        ("users", "%role%teacher%student%"),
+    ).fetchall()
+    for constraint in constraints:
+        conn.execute(sql.SQL("ALTER TABLE users DROP CONSTRAINT {}").format(sql.Identifier(constraint["conname"])))
+    conn.execute("ALTER TABLE users ADD CONSTRAINT users_role_check CHECK(role IN ('admin', 'teacher', 'student'))")
+
+
 def init_db():
     with WRITE_LOCK:
         conn = get_db()
@@ -106,13 +125,14 @@ def init_db():
                     password TEXT NOT NULL DEFAULT '',
                     password_hash TEXT,
                     full_name TEXT NOT NULL,
-                    role TEXT NOT NULL CHECK(role IN ('teacher', 'student')),
+                    role TEXT NOT NULL CHECK(role IN ('admin', 'teacher', 'student')),
                     created_at TEXT NOT NULL DEFAULT ''
                 )
                 """
             )
             add_column_if_missing(conn, "users", "password_hash", "TEXT")
             add_column_if_missing(conn, "users", "created_at", "TEXT NOT NULL DEFAULT ''")
+            ensure_user_role_constraint(conn)
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS evaluations (
@@ -120,6 +140,7 @@ def init_db():
                     student_id INTEGER NOT NULL,
                     title TEXT NOT NULL,
                     evaluation_type TEXT NOT NULL CHECK(evaluation_type IN ('ecrit', 'oral')),
+                    trimester INTEGER NOT NULL DEFAULT 1 CHECK(trimester IN (1, 2, 3)),
                     subject_area TEXT NOT NULL,
                     evaluation_date TEXT NOT NULL,
                     score DOUBLE PRECISION NOT NULL CHECK(score >= 0),
@@ -130,6 +151,7 @@ def init_db():
                 )
                 """
             )
+            add_column_if_missing(conn, "evaluations", "trimester", "INTEGER NOT NULL DEFAULT 1 CHECK(trimester IN (1, 2, 3))")
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS sessions (
@@ -142,7 +164,7 @@ def init_db():
                 """
             )
             migrate_plain_passwords(conn)
-            ensure_teacher_account(conn)
+            ensure_staff_accounts(conn)
             if DEMO_MODE:
                 ensure_demo_students(conn)
             conn.execute("DELETE FROM sessions WHERE expires_at < %s", (iso_now(),))
@@ -164,16 +186,25 @@ def migrate_plain_passwords(conn):
             )
 
 
-def ensure_teacher_account(conn):
-    row = conn.execute("SELECT id, password_hash FROM users WHERE username = %s", (ADMIN_USERNAME,)).fetchone()
+def ensure_account(conn, username, password, full_name, role):
+    row = conn.execute("SELECT id, password_hash, role FROM users WHERE username = %s", (username,)).fetchone()
     if row:
-        if not row["password_hash"] and ADMIN_PASSWORD:
-            conn.execute("UPDATE users SET password_hash = %s WHERE id = %s", (hash_password(ADMIN_PASSWORD), row["id"]))
+        if not row["password_hash"] and password:
+            conn.execute("UPDATE users SET password_hash = %s WHERE id = %s", (hash_password(password), row["id"]))
+        if row["role"] != role:
+            conn.execute("UPDATE users SET role = %s WHERE id = %s", (role, row["id"]))
         return
     conn.execute(
-        "INSERT INTO users (username, password, password_hash, full_name, role, created_at) VALUES (%s, '', %s, %s, 'teacher', %s)",
-        (ADMIN_USERNAME, hash_password(ADMIN_PASSWORD), ADMIN_FULL_NAME, iso_now()),
+        "INSERT INTO users (username, password, password_hash, full_name, role, created_at) VALUES (%s, '', %s, %s, %s, %s)",
+        (username, hash_password(password), full_name, role, iso_now()),
     )
+
+
+def ensure_staff_accounts(conn):
+    if ADMIN_USERNAME == TEACHER_USERNAME:
+        raise RuntimeError("ADMIN_USERNAME et TEACHER_USERNAME doivent etre differents.")
+    ensure_account(conn, ADMIN_USERNAME, ADMIN_PASSWORD, ADMIN_FULL_NAME, "admin")
+    ensure_account(conn, TEACHER_USERNAME, TEACHER_PASSWORD, TEACHER_FULL_NAME, "teacher")
 
 
 def ensure_demo_students(conn):
@@ -275,10 +306,17 @@ def detect_improvement_points(text):
 
 
 def summarize_student(student, evaluations):
+    empty_trimester_averages = {str(trimester): None for trimester in range(1, 4)}
     if not evaluations:
         return {
             "student": student,
-            "stats": {"evaluations_count": 0, "average": None, "written_average": None, "oral_average": None},
+            "stats": {
+                "evaluations_count": 0,
+                "average": None,
+                "written_average": None,
+                "oral_average": None,
+                "trimester_averages": empty_trimester_averages,
+            },
             "strengths": ["Aucune donnee pour le moment."],
             "weaknesses": ["Aucune faiblesse detectee sans evaluations."],
             "improvements": ["Saisir les premieres evaluations pour obtenir une synthese."],
@@ -294,6 +332,10 @@ def summarize_student(student, evaluations):
     global_average = mean(normalized_scores)
     written_average = mean(written_scores)
     oral_average = mean(oral_scores)
+    trimester_averages = {
+        str(trimester): mean([score_percent(item) for item in evaluations if int(item.get("trimester") or 1) == trimester])
+        for trimester in range(1, 4)
+    }
 
     if global_average is not None and global_average >= 13:
         strengths.append("Resultats globalement solides en francais.")
@@ -347,6 +389,7 @@ def summarize_student(student, evaluations):
             "average": global_average,
             "written_average": written_average,
             "oral_average": oral_average,
+            "trimester_averages": trimester_averages,
         },
         "strengths": strengths,
         "weaknesses": weaknesses,
@@ -364,6 +407,14 @@ def summarize_class():
     student_summaries = [summarize_student(student, by_student.get(student["id"], [])) for student in students]
     averages = [summary["stats"]["average"] for summary in student_summaries if summary["stats"]["average"] is not None]
     class_average = mean(averages)
+    trimester_averages = {
+        str(trimester): mean([
+            summary["stats"]["trimester_averages"][str(trimester)]
+            for summary in student_summaries
+            if summary["stats"]["trimester_averages"][str(trimester)] is not None
+        ])
+        for trimester in range(1, 4)
+    }
     strengths_counter = {}
     improvements_counter = {}
     for summary in student_summaries:
@@ -377,6 +428,7 @@ def summarize_class():
         "students_count": len(students),
         "evaluations_count": len(evaluations),
         "class_average": class_average,
+        "trimester_averages": trimester_averages,
         "top_strengths": top_strengths or ["Aucune tendance forte pour le moment."],
         "top_improvements": top_improvements or ["Aucune tendance forte pour le moment."],
         "student_summaries": student_summaries,
@@ -401,6 +453,7 @@ def public_class_summary():
         "students_count": summary["students_count"],
         "evaluations_count": summary["evaluations_count"],
         "class_average": summary["class_average"],
+        "trimester_averages": summary["trimester_averages"],
         "top_strengths": summary["top_strengths"],
         "top_improvements": summary["top_improvements"],
         "general_opinion": general_opinion,
@@ -486,7 +539,8 @@ class PrototypeHandler(BaseHTTPRequestHandler):
         if not user:
             self._send_json({"error": "Authentification requise."}, HTTPStatus.UNAUTHORIZED)
             return None
-        if role and user["role"] != role:
+        allowed_roles = {role} if isinstance(role, str) else set(role or [])
+        if allowed_roles and user["role"] not in allowed_roles:
             self._send_json({"error": "Acces non autorise."}, HTTPStatus.FORBIDDEN)
             return None
         return user
@@ -505,7 +559,7 @@ class PrototypeHandler(BaseHTTPRequestHandler):
             user = self._get_session_user()
             return self._send_json({"authenticated": bool(user), "user": user})
         if parsed.path == "/api/students":
-            user = self._require_auth("teacher")
+            user = self._require_auth(STAFF_ROLES)
             if not user:
                 return
             return self._send_json({"students": list_students()})
@@ -515,7 +569,7 @@ class PrototypeHandler(BaseHTTPRequestHandler):
                 return
             params = parse_qs(parsed.query)
             student_id = user["id"]
-            if user["role"] == "teacher" and "student_id" in params:
+            if user["role"] in STAFF_ROLES and "student_id" in params:
                 student_id = int(params["student_id"][0])
             return self._send_json({"evaluations": list_evaluations(student_id)})
         if parsed.path.startswith("/api/student-summary/"):
@@ -523,7 +577,7 @@ class PrototypeHandler(BaseHTTPRequestHandler):
             if not user:
                 return
             student_id = int(parsed.path.rsplit("/", 1)[-1])
-            if user["role"] != "teacher" and user["id"] != student_id:
+            if user["role"] not in STAFF_ROLES and user["id"] != student_id:
                 return self._send_json({"error": "Acces non autorise."}, HTTPStatus.FORBIDDEN)
             student = get_user_by_id(student_id)
             if not student or student["role"] != "student":
@@ -533,7 +587,7 @@ class PrototypeHandler(BaseHTTPRequestHandler):
             user = self._require_auth()
             if not user:
                 return
-            if user["role"] == "teacher":
+            if user["role"] in STAFF_ROLES:
                 return self._send_json({"summary": summarize_class()})
             return self._send_json({"summary": public_class_summary()})
         self.send_error(HTTPStatus.NOT_FOUND)
@@ -631,14 +685,26 @@ class PrototypeHandler(BaseHTTPRequestHandler):
         if not user:
             return
         payload = parse_body(self)
-        student_id = int(payload.get("student_id")) if user["role"] == "teacher" else user["id"]
-        required_fields = ["title", "evaluation_type", "subject_area", "evaluation_date", "score", "max_score", "appreciation"]
+        student_id = int(payload.get("student_id")) if user["role"] in STAFF_ROLES else user["id"]
+        required_fields = [
+            "title",
+            "evaluation_type",
+            "trimester",
+            "subject_area",
+            "evaluation_date",
+            "score",
+            "max_score",
+            "appreciation",
+        ]
         missing = [field for field in required_fields if payload.get(field) in (None, "")]
         if missing:
             raise ValueError(f"Champs manquants: {', '.join(missing)}.")
         evaluation_type = payload["evaluation_type"]
         if evaluation_type not in {"ecrit", "oral"}:
             raise ValueError("Type d'evaluation invalide.")
+        trimester = int(payload["trimester"])
+        if trimester not in {1, 2, 3}:
+            raise ValueError("Trimestre invalide.")
         score = float(payload["score"])
         max_score = float(payload["max_score"])
         if score < 0 or max_score <= 0 or score > max_score:
@@ -653,14 +719,15 @@ class PrototypeHandler(BaseHTTPRequestHandler):
                 conn.execute(
                     """
                     INSERT INTO evaluations (
-                        student_id, title, evaluation_type, subject_area,
+                        student_id, title, evaluation_type, trimester, subject_area,
                         evaluation_date, score, max_score, appreciation, created_at
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     (
                         student_id,
                         clean_text(payload["title"], 160),
                         evaluation_type,
+                        trimester,
                         clean_text(payload["subject_area"], 120),
                         clean_text(payload["evaluation_date"], 20),
                         score,

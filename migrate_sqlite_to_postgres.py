@@ -40,6 +40,10 @@ def sqlite_rows(conn, table, columns):
     return conn.execute(f"SELECT {column_list} FROM {table} ORDER BY 1").fetchall()
 
 
+def sqlite_table_columns(conn, table):
+    return {row["name"] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+
+
 def reset_user_sequence(pg_conn):
     pg_conn.execute(
         """
@@ -77,11 +81,13 @@ def migrate():
         if DATABASE_SCHEMA != "public":
             pg_conn.execute(f"CREATE SCHEMA IF NOT EXISTS {DATABASE_SCHEMA}")
         user_columns = ["id", "username", "password", "password_hash", "full_name", "role", "created_at"]
+        sqlite_evaluation_columns = sqlite_table_columns(sqlite_conn, "evaluations")
         evaluation_columns = [
             "id",
             "student_id",
             "title",
             "evaluation_type",
+            *([] if "trimester" not in sqlite_evaluation_columns else ["trimester"]),
             "subject_area",
             "evaluation_date",
             "score",
@@ -111,14 +117,15 @@ def migrate():
             pg_conn.execute(
                 """
                 INSERT INTO evaluations (
-                    id, student_id, title, evaluation_type, subject_area,
+                    id, student_id, title, evaluation_type, trimester, subject_area,
                     evaluation_date, score, max_score, appreciation, created_at
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (id) DO UPDATE SET
                     student_id = EXCLUDED.student_id,
                     title = EXCLUDED.title,
                     evaluation_type = EXCLUDED.evaluation_type,
+                    trimester = EXCLUDED.trimester,
                     subject_area = EXCLUDED.subject_area,
                     evaluation_date = EXCLUDED.evaluation_date,
                     score = EXCLUDED.score,
@@ -126,7 +133,19 @@ def migrate():
                     appreciation = EXCLUDED.appreciation,
                     created_at = EXCLUDED.created_at
                 """,
-                tuple(row[column] for column in evaluation_columns),
+                (
+                    row["id"],
+                    row["student_id"],
+                    row["title"],
+                    row["evaluation_type"],
+                    row["trimester"] if "trimester" in row.keys() else 1,
+                    row["subject_area"],
+                    row["evaluation_date"],
+                    row["score"],
+                    row["max_score"],
+                    row["appreciation"],
+                    row["created_at"],
+                ),
             )
 
         for row in sqlite_rows(sqlite_conn, "sessions", session_columns):
