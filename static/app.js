@@ -308,7 +308,7 @@ async function renderStudentDashboard() {
       <section class="summary-grid">
         ${renderSummaryCard("Forces", summary.strengths)}
         ${renderSummaryCard("Points de vigilance", summary.weaknesses)}
-        ${renderSummaryCard("Voies d'amelioration", summary.improvements)}
+        ${renderSummaryCard("Conseils concrets", summary.improvements)}
       </section>
       <section class="panel">
         <p class="eyebrow">Avis general</p>
@@ -329,7 +329,7 @@ async function renderStudentDashboard() {
         ${renderTrimesterAverages(classSummary.trimester_averages)}
         <section class="summary-grid">
           ${renderSummaryCard("Forces recurrentes", classSummary.top_strengths)}
-          ${renderSummaryCard("Axes d'amelioration recurrents", classSummary.top_improvements)}
+          ${renderSummaryCard("Conseils recurrents", classSummary.top_improvements)}
         </section>
         <section class="stat-card">
           <p class="eyebrow">Avis general sur la classe</p>
@@ -399,7 +399,7 @@ async function renderStaffDashboard() {
       ${renderTrimesterAverages(summary.trimester_averages)}
       <section class="summary-grid">
         ${renderSummaryCard("Forces recurrentes", summary.top_strengths)}
-        ${renderSummaryCard("Axes d'amelioration recurrents", summary.top_improvements)}
+        ${renderSummaryCard("Conseils recurrents", summary.top_improvements)}
       </section>
       <section class="panel">
         <div class="panel-header"><div><p class="eyebrow">Ajout rapide</p><h3>Saisir une evaluation pour un eleve</h3></div></div>
@@ -426,7 +426,7 @@ async function renderStaffDashboard() {
             <section class="summary-grid">
               ${renderSummaryCard("Forces", selectedSummary.strengths)}
               ${renderSummaryCard("Points de vigilance", selectedSummary.weaknesses)}
-              ${renderSummaryCard("Voies d'amelioration", selectedSummary.improvements)}
+              ${renderSummaryCard("Conseils concrets", selectedSummary.improvements)}
             </section>
             <section class="stat-card">
               <p class="eyebrow">Avis general</p>

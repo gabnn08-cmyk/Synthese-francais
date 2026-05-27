@@ -5,6 +5,7 @@ import os
 import re
 import secrets
 import threading
+import unicodedata
 from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
 from http.cookies import SimpleCookie
@@ -292,32 +293,241 @@ def score_percent(evaluation):
     return (evaluation["score"] / evaluation["max_score"]) * 20 if evaluation["max_score"] else 0
 
 
+NO_EXPLICIT_STRENGTH = "Les appreciations saisies ne formulent pas encore de point fort explicite."
+NO_EXPLICIT_VIGILANCE = "Les appreciations saisies ne formulent pas encore de point de vigilance explicite."
+NO_EXPLICIT_ADVICE = "Aucun conseil concret ne peut etre deduit sans indication explicite dans les appreciations."
+NO_CLASS_STRENGTH_TREND = "Aucune tendance positive explicite ne ressort encore des appreciations."
+NO_CLASS_ADVICE_TREND = "Aucun axe de conseil recurrent ne ressort encore des appreciations."
+
+POSITIVE_MARKERS = [
+    "bon",
+    "bonne",
+    "solide",
+    "convaincant",
+    "reussi",
+    "maitrise",
+    "aisance",
+    "rigoureux",
+    "serieux",
+    "pertinent",
+    "clair",
+    "efficace",
+    "precis",
+]
+
+NEGATIVE_MARKERS = [
+    "pas",
+    "pas assez",
+    "peu",
+    "manque",
+    "fragile",
+    "difficil",
+    "insuffisant",
+    "a revoir",
+    "a travailler",
+    "attention",
+]
+
+IMPROVEMENT_MARKERS = [
+    "approfond",
+    "amelior",
+    "renforc",
+    "consolid",
+    "retravaill",
+    "travaill",
+    "manque",
+    "fragile",
+    "difficil",
+    "insuffisant",
+    "attention",
+    "pas assez",
+    "peu",
+    "revoir",
+    "a revoir",
+    "a travailler",
+    "gagner",
+    "developp",
+    "preciser",
+    "structurer",
+    "justifier",
+    "faut",
+]
+
+POSITIVE_RULES = [
+    {
+        "keywords": ["analyse", "commentaire", "interpretation"],
+        "label": "Une capacite d'analyse est explicitement soulignee.",
+    },
+    {
+        "keywords": ["argument", "argumentation"],
+        "label": "Une argumentation solide est signalee.",
+    },
+    {
+        "keywords": ["oral", "prise de parole"],
+        "label": "Une aisance a l'oral est mentionnee.",
+    },
+    {
+        "keywords": ["ecrit", "redaction", "expression", "style"],
+        "label": "Une expression ecrite convaincante est relevee.",
+    },
+    {
+        "keywords": ["lecture", "comprehension"],
+        "label": "Une bonne comprehension des textes est relevee.",
+    },
+    {
+        "keywords": ["rigueur", "serieux", "regularite", "autonomie"],
+        "label": "La rigueur et le serieux du travail sont valorises.",
+    },
+    {
+        "keywords": ["orthographe", "accord"],
+        "label": "La maitrise orthographique est valorisee.",
+    },
+    {
+        "keywords": ["syntaxe", "phrase"],
+        "label": "La qualite de la syntaxe est relevee.",
+    },
+    {
+        "keywords": ["methode", "consigne"],
+        "label": "La methode est valorisee.",
+    },
+    {
+        "keywords": ["vocabulaire", "lexique"],
+        "label": "Le vocabulaire est valorise.",
+    },
+]
+
+IMPROVEMENT_RULES = [
+    {
+        "keywords": ["analyse", "commentaire", "interpretation", "approfond"],
+        "point": "Un approfondissement de l'analyse est demande.",
+        "advice": "Pour approfondir l'analyse, partir d'une idee precise, l'appuyer sur un exemple du texte, puis expliquer l'effet produit.",
+    },
+    {
+        "keywords": ["precision", "precis"],
+        "point": "Le besoin de precision est mentionne dans les appreciations.",
+        "advice": "Pour gagner en precision, relire chaque reponse en verifiant que les notions, les citations et les termes litteraires sont exacts.",
+    },
+    {
+        "keywords": ["syntaxe", "phrase"],
+        "point": "La syntaxe est indiquee comme un point a travailler.",
+        "advice": "Pour ameliorer la syntaxe, privilegier des phrases plus courtes, verifier le verbe principal et relire a voix basse.",
+    },
+    {
+        "keywords": ["orthographe", "accord"],
+        "point": "L'orthographe est signalee comme un axe de vigilance.",
+        "advice": "Pour renforcer l'orthographe, consacrer une relecture distincte aux accords, aux terminaisons verbales et aux accents.",
+    },
+    {
+        "keywords": ["structure", "organiser", "organisation", "plan"],
+        "point": "Une structuration plus nette des idees est attendue.",
+        "advice": "Pour structurer le devoir, annoncer clairement l'idee du paragraphe, developper un seul argument, puis conclure avant de passer au suivant.",
+    },
+    {
+        "keywords": ["justifier", "justification", "citation", "preuve"],
+        "point": "La justification des arguments est explicitement attendue.",
+        "advice": "Pour mieux justifier, associer chaque affirmation a une citation courte ou a un exemple precis, puis commenter ce choix.",
+    },
+    {
+        "keywords": ["oral", "confiance", "voix", "prise de parole"],
+        "point": "Un travail sur l'oral est signale.",
+        "advice": "Pour l'oral, preparer un plan tres bref, s'entrainer a formuler la premiere phrase et travailler une diction posee.",
+    },
+    {
+        "keywords": ["methode", "consigne"],
+        "point": "La methode ou le respect de la consigne est mentionne comme point de vigilance.",
+        "advice": "Pour consolider la methode, commencer par reformuler la consigne, reperer l'exercice attendu et verifier que chaque partie y repond.",
+    },
+    {
+        "keywords": ["rigueur", "serieux", "regularite"],
+        "point": "La rigueur ou la regularite est mentionnee comme point de vigilance.",
+        "advice": "Pour gagner en rigueur, prevoir une relecture methodique: consigne, plan, exemples, puis correction de la langue.",
+    },
+    {
+        "keywords": ["vocabulaire", "lexique"],
+        "point": "Le vocabulaire est indique comme un axe de progression.",
+        "advice": "Pour enrichir le vocabulaire, tenir une courte liste de termes litteraires et les reutiliser dans les analyses.",
+    },
+]
+
+
+def normalize_text(value):
+    normalized = unicodedata.normalize("NFKD", str(value or "").lower())
+    return "".join(character for character in normalized if not unicodedata.combining(character))
+
+
+def contains_any(text, terms):
+    return any(term in text for term in terms)
+
+
+def text_segments(text):
+    normalized = normalize_text(text)
+    return [
+        segment.strip()
+        for segment in re.split(r"[,.;:!?]|\bmais\b|\bcependant\b|\btoutefois\b|\ben revanche\b", normalized)
+        if segment.strip()
+    ]
+
+
+def rule_matches(text, keywords, markers, forbidden_markers=None):
+    forbidden_markers = forbidden_markers or []
+    return any(
+        contains_any(segment, keywords)
+        and contains_any(segment, markers)
+        and not contains_any(segment, forbidden_markers)
+        for segment in text_segments(text)
+    )
+
+
+def unique_items(items):
+    return list(dict.fromkeys(items))
+
+
 def detect_positive_points(text):
-    lowered = text.lower()
-    mapping = {
-        "analyse": "bonne capacite d'analyse",
-        "argument": "argumentation solide",
-        "oral": "aisance a l'oral",
-        "ecrit": "maitrise de l'ecrit",
-        "lecture": "bonne comprehension des textes",
-        "style": "expression ecrite convaincante",
-        "rigueur": "travail rigoureux",
-    }
-    return [label for keyword, label in mapping.items() if keyword in lowered]
+    return [
+        rule["label"]
+        for rule in POSITIVE_RULES
+        if rule_matches(text, rule["keywords"], POSITIVE_MARKERS, NEGATIVE_MARKERS)
+    ]
+
+
+def matching_improvement_rules(text):
+    return [
+        rule
+        for rule in IMPROVEMENT_RULES
+        if rule_matches(text, rule["keywords"], IMPROVEMENT_MARKERS)
+    ]
 
 
 def detect_improvement_points(text):
-    lowered = text.lower()
-    mapping = {
-        "approfond": "approfondir les analyses",
-        "precision": "gagner en precision",
-        "syntaxe": "ameliorer la syntaxe",
-        "orthographe": "renforcer l'orthographe",
-        "structure": "mieux structurer les idees",
-        "justifier": "mieux justifier les arguments",
-        "confiance": "prendre davantage confiance a l'oral",
-    }
-    return [label for keyword, label in mapping.items() if keyword in lowered]
+    return [rule["point"] for rule in matching_improvement_rules(text)]
+
+
+def detect_concrete_advice(text):
+    return [rule["advice"] for rule in matching_improvement_rules(text)]
+
+
+def build_grounded_opinion(strengths, vigilance_points, advice):
+    has_strengths = strengths and strengths != [NO_EXPLICIT_STRENGTH]
+    has_vigilance = vigilance_points and vigilance_points != [NO_EXPLICIT_VIGILANCE]
+    has_advice = advice and advice != [NO_EXPLICIT_ADVICE]
+
+    if has_strengths and has_vigilance:
+        return (
+            f"Les appreciations saisies font ressortir un point d'appui: {strengths[0]} "
+            f"Elles indiquent aussi un axe de travail: {vigilance_points[0]} "
+            f"Le conseil prioritaire est le suivant: {advice[0] if has_advice else NO_EXPLICIT_ADVICE}"
+        )
+    if has_strengths:
+        return (
+            f"Les appreciations saisies soulignent clairement ce point d'appui: {strengths[0]} "
+            "Aucun point de vigilance explicite n'y est formule."
+        )
+    if has_vigilance:
+        return (
+            f"Les appreciations saisies indiquent un axe de travail: {vigilance_points[0]} "
+            f"Le conseil prioritaire est le suivant: {advice[0] if has_advice else NO_EXPLICIT_ADVICE}"
+        )
+    return "Les appreciations saisies ne contiennent pas encore d'indications qualitatives assez explicites pour etablir une synthese fiable."
 
 
 def summarize_student(student, evaluations):
@@ -332,9 +542,9 @@ def summarize_student(student, evaluations):
                 "oral_average": None,
                 "trimester_averages": empty_trimester_averages,
             },
-            "strengths": ["Aucune donnee exploitable pour le moment."],
-            "weaknesses": ["Aucun point de vigilance ne peut etre etabli sans evaluations."],
-            "improvements": ["Saisir les premieres evaluations pour obtenir une synthese pedagogique."],
+            "strengths": [NO_EXPLICIT_STRENGTH],
+            "weaknesses": [NO_EXPLICIT_VIGILANCE],
+            "improvements": [NO_EXPLICIT_ADVICE],
             "general_opinion": "Synthese indisponible tant qu'aucune evaluation n'a ete ajoutee.",
         }
 
@@ -352,50 +562,23 @@ def summarize_student(student, evaluations):
         for trimester in range(1, 4)
     }
 
-    if global_average is not None and global_average >= 13:
-        strengths.append("Resultats globalement solides en francais, dans la perspective des exigences du bac.")
-    elif global_average is not None and global_average < 10:
-        weaknesses.append("Les resultats appellent une reprise methodique des attendus de Premiere generale.")
-
-    if written_average is not None:
-        if written_average >= 12:
-            strengths.append("Bonne maitrise des exercices ecrits attendus au bac de francais.")
-        elif written_average < 10:
-            weaknesses.append("La methode des exercices ecrits doit etre reprise avec rigueur.")
-            improvements.append("Travailler la redaction, l'organisation des idees et la precision des references.")
-
-    if oral_average is not None:
-        if oral_average >= 14:
-            strengths.append("Aisance remarquable lors des prises de parole, precieuse pour l'oral du bac.")
-        elif oral_average < 10:
-            weaknesses.append("L'oral reste a consolider pour atteindre les exigences de l'epreuve anticipee.")
-            improvements.append("S'entrainer a l'oral avec des prises de parole structurees et regulieres.")
-
     for evaluation in evaluations:
         strengths.extend(detect_positive_points(evaluation["appreciation"]))
-        improvements.extend(detect_improvement_points(evaluation["appreciation"]))
+        weaknesses.extend(detect_improvement_points(evaluation["appreciation"]))
+        improvements.extend(detect_concrete_advice(evaluation["appreciation"]))
 
     if not strengths:
-        strengths.append("Quelques acquis sont perceptibles mais doivent encore se confirmer.")
+        strengths.append(NO_EXPLICIT_STRENGTH)
     if not weaknesses:
-        weaknesses.append("Aucun point de vigilance majeur recurrent sur les donnees actuelles.")
+        weaknesses.append(NO_EXPLICIT_VIGILANCE)
     if not improvements:
-        improvements.append("Poursuivre les efforts de regularite, de precision et de methode.")
+        improvements.append(NO_EXPLICIT_ADVICE)
 
-    strengths = list(dict.fromkeys(strengths))[:4]
-    weaknesses = list(dict.fromkeys(weaknesses))[:4]
-    improvements = list(dict.fromkeys(improvements))[:4]
+    strengths = unique_items(strengths)[:4]
+    weaknesses = unique_items(weaknesses)[:4]
+    improvements = unique_items(improvements)[:4]
 
-    if global_average is None:
-        opinion = "Les donnees sont encore insuffisantes pour une tendance generale."
-    elif global_average >= 15:
-        opinion = "Avis de professeure agregee de francais au lycee Saint-Louis de Gonzague: excellent ensemble, autonome, regulier et convaincant."
-    elif global_average >= 12:
-        opinion = "Avis exigeant et positif, dans le cadre du lycee Saint-Louis de Gonzague: travail serieux, acquis solides et progression encourageante pour le bac."
-    elif global_average >= 10:
-        opinion = "Avis nuance, au niveau d'exigence du lycee Saint-Louis de Gonzague: les bases sont presentes, mais les attendus de Premiere generale demandent davantage de rigueur."
-    else:
-        opinion = "Avis exigeant, au niveau d'une Premiere generale du lycee Saint-Louis de Gonzague: les attendus ne sont pas encore suffisamment stabilises; priorite a la methode, a la precision et a la regularite."
+    opinion = build_grounded_opinion(strengths, weaknesses, improvements)
 
     return {
         "student": student,
@@ -434,9 +617,11 @@ def summarize_class():
     improvements_counter = {}
     for summary in student_summaries:
         for item in summary["strengths"]:
-            strengths_counter[item] = strengths_counter.get(item, 0) + 1
+            if item != NO_EXPLICIT_STRENGTH:
+                strengths_counter[item] = strengths_counter.get(item, 0) + 1
         for item in summary["improvements"]:
-            improvements_counter[item] = improvements_counter.get(item, 0) + 1
+            if item != NO_EXPLICIT_ADVICE:
+                improvements_counter[item] = improvements_counter.get(item, 0) + 1
     top_strengths = sorted(strengths_counter, key=strengths_counter.get, reverse=True)[:5]
     top_improvements = sorted(improvements_counter, key=improvements_counter.get, reverse=True)[:5]
     return {
@@ -444,25 +629,35 @@ def summarize_class():
         "evaluations_count": len(evaluations),
         "class_average": class_average,
         "trimester_averages": trimester_averages,
-        "top_strengths": top_strengths or ["Aucune tendance forte pour le moment."],
-        "top_improvements": top_improvements or ["Aucune tendance forte pour le moment."],
+        "top_strengths": top_strengths or [NO_CLASS_STRENGTH_TREND],
+        "top_improvements": top_improvements or [NO_CLASS_ADVICE_TREND],
         "student_summaries": student_summaries,
     }
 
 
 def public_class_summary():
     summary = summarize_class()
-    class_average = summary["class_average"]
-    if class_average is None:
+    top_strengths = [item for item in summary["top_strengths"] if item != NO_CLASS_STRENGTH_TREND]
+    top_improvements = [item for item in summary["top_improvements"] if item != NO_CLASS_ADVICE_TREND]
+    if summary["evaluations_count"] == 0:
         general_opinion = "La synthese de classe sera plus parlante apres quelques evaluations supplementaires."
-    elif class_average >= 14:
-        general_opinion = "La dynamique de classe est tres positive, avec un niveau d'ensemble solide pour preparer le bac de francais au lycee Saint-Louis de Gonzague."
-    elif class_average >= 12:
-        general_opinion = "La classe montre des acquis encourageants et une base de travail serieuse, conforme a l'ambition d'une Premiere generale au lycee Saint-Louis de Gonzague."
-    elif class_average >= 10:
-        general_opinion = "Le niveau de classe reste heterogene; la progression devra porter sur la methode, la precision et la qualite de l'expression."
+    elif top_strengths and top_improvements:
+        general_opinion = (
+            f"Les appreciations de la classe font ressortir ce point d'appui: {top_strengths[0]} "
+            f"Elles orientent le travail vers ce conseil prioritaire: {top_improvements[0]}"
+        )
+    elif top_strengths:
+        general_opinion = (
+            f"Les appreciations de la classe font ressortir ce point d'appui: {top_strengths[0]} "
+            "Aucun axe de conseil recurrent n'est formule explicitement."
+        )
+    elif top_improvements:
+        general_opinion = (
+            "Les appreciations de la classe ne font pas encore ressortir de point d'appui recurrent explicite. "
+            f"Elles orientent cependant le travail vers ce conseil prioritaire: {top_improvements[0]}"
+        )
     else:
-        general_opinion = "La classe doit consolider plusieurs competences essentielles pour aborder le bac avec davantage de maitrise."
+        general_opinion = "Les appreciations saisies ne contiennent pas encore de tendance qualitative assez explicite pour etablir une synthese de classe fiable."
 
     return {
         "students_count": summary["students_count"],
