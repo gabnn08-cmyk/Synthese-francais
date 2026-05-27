@@ -64,6 +64,22 @@ DATABASE_SSLMODE=require
 DATABASE_SCHEMA=app_private
 COOKIE_SECURE=true
 DEMO_MODE=false
+SITE_NAME=Synthese de francais
+SITE_URL=https://votre-domaine.fr
+LEGAL_ENTITY_NAME=Nom de l'etablissement ou de l'organisme
+LEGAL_ENTITY_STATUS=Etablissement scolaire
+LEGAL_ENTITY_ADDRESS=Adresse postale complete
+LEGAL_CONTACT_EMAIL=contact@votre-domaine.fr
+LEGAL_CONTACT_PHONE=0102030405
+LEGAL_PUBLICATION_DIRECTOR=Nom du responsable de publication
+LEGAL_DPO_CONTACT=rgpd@votre-domaine.fr
+HOSTING_PROVIDER_NAME=Nom de l'hebergeur
+HOSTING_PROVIDER_ADDRESS=Adresse de l'hebergeur
+HOSTING_PROVIDER_PHONE=Telephone de l'hebergeur
+PRIVACY_ACCOUNT_RETENTION=jusqu'a 12 mois apres la derniere activite du compte
+PRIVACY_EVALUATION_RETENTION=pendant l'annee scolaire en cours puis selon la politique de l'etablissement
+ACCESSIBILITY_CONTACT=accessibilite@votre-domaine.fr
+ACCESSIBILITY_MULTIYEAR_PLAN_URL=https://votre-domaine.fr/accessibilite-plan
 ADMIN_USERNAME=admin
 ADMIN_FULL_NAME=Administrateur
 ADMIN_PASSWORD=mot-de-passe-fort
@@ -104,8 +120,13 @@ python migrate_sqlite_to_postgres.py
 - `TEACHER_PASSWORD`: mot de passe initial du compte professeure, par défaut identique à `ADMIN_PASSWORD` si absent
 - `TEACHER_FULL_NAME`: nom affiché pour le compte professeure
 - `COOKIE_SECURE`: `true` en production HTTPS, `false` en local si besoin
-- `DEMO_MODE`: `true` uniquement pour créer les comptes de démonstration
-- `PROTOTYPE_DB_PATH`: chemin de l'ancienne base SQLite, utilisé seulement par le script de migration
+- `DEMO_MODE`: `true` uniquement pour creer les comptes de demonstration
+- `PROTOTYPE_DB_PATH`: chemin de l'ancienne base SQLite, utilise seulement par le script de migration
+- `SITE_NAME`, `SITE_URL`: nom public du service et URL de deploiement
+- `LEGAL_*`: informations d'editeur, de contact, de responsable de publication et de point RGPD affichees sur les pages legales
+- `HOSTING_PROVIDER_*`: informations d'hebergement affichees dans les mentions legales
+- `PRIVACY_*`: durees de conservation affichees dans la politique de confidentialite
+- `ACCESSIBILITY_CONTACT`, `ACCESSIBILITY_MULTIYEAR_PLAN_URL`: contact et lien de reference pour la page accessibilite
 
 ## Déploiement Render avec Supabase
 

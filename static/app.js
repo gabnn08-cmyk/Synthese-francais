@@ -175,7 +175,7 @@ function studentFormMarkup(isTeacher = false, evaluation = null) {
         <button type="submit" class="primary-button">${isEditing ? "Enregistrer les modifications" : "Ajouter l'évaluation"}</button>
         ${isEditing ? `<button type="button" id="cancel-edit-button" class="ghost-button">Annuler</button>` : ""}
       </div>
-      <p id="form-message" class="message"></p>
+      <p id="form-message" class="message" aria-live="polite"></p>
     </form>
   `;
 }
@@ -234,14 +234,14 @@ function evaluationsTable(evaluations, { canManage = false } = {}) {
         <tbody>
           ${evaluations.map((evaluation) => `
             <tr>
-              <td>${escapeHtml(evaluation.evaluation_date)}</td>
-              <td><strong>${escapeHtml(evaluation.title)}</strong><br><span class="muted">${escapeHtml(evaluation.subject_area)}</span></td>
-              <td><span class="badge">${escapeHtml(evaluation.evaluation_type)}</span></td>
-              <td><span class="badge">T${escapeHtml(evaluation.trimester || 1)}</span></td>
-              <td>${escapeHtml(evaluation.score)}/${escapeHtml(evaluation.max_score)}</td>
-              <td>${escapeHtml(evaluation.appreciation)}</td>
+              <td data-label="Date">${escapeHtml(evaluation.evaluation_date)}</td>
+              <td data-label="Evaluation"><strong>${escapeHtml(evaluation.title)}</strong><br><span class="muted">${escapeHtml(evaluation.subject_area)}</span></td>
+              <td data-label="Type"><span class="badge">${escapeHtml(evaluation.evaluation_type)}</span></td>
+              <td data-label="Trimestre"><span class="badge">T${escapeHtml(evaluation.trimester || 1)}</span></td>
+              <td data-label="Note">${escapeHtml(evaluation.score)}/${escapeHtml(evaluation.max_score)}</td>
+              <td data-label="Appreciation">${escapeHtml(evaluation.appreciation)}</td>
               ${canManage ? `
-              <td>
+              <td data-label="Actions">
                 <div class="row-actions">
                   <button type="button" class="small-button" data-edit-evaluation-id="${escapeHtml(evaluation.id)}">Modifier</button>
                   <button type="button" class="small-button danger-button" data-delete-evaluation-id="${escapeHtml(evaluation.id)}">Supprimer</button>
