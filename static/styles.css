@@ -19,6 +19,7 @@ body {
   min-height: 100vh;
   font-family: "Manrope", sans-serif;
   color: var(--text);
+  overflow-x: hidden;
   background:
     linear-gradient(135deg, #f7f8f5 0%, #eef4f1 48%, #f8f3e8 100%);
 }
@@ -78,7 +79,7 @@ button {
 }
 
 .panel {
-  padding: 24px;
+  padding: clamp(18px, 2vw, 24px);
 }
 .summary-list {
   line-height: 1.55;
@@ -95,6 +96,7 @@ button {
 
 .auth-panel {
   max-width: 460px;
+  width: 100%;
 }
 
 .stack,
@@ -271,7 +273,146 @@ td {
 }
 
 @media (max-width: 900px) {
+  .page-shell {
+    width: min(100% - 24px, 1180px);
+    margin: 20px auto 36px;
+  }
+
+  .hero {
+    margin-bottom: 22px;
+  }
+
+  .hero h1 {
+    line-height: 1.02;
+  }
+
   .teacher-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .panel-header,
+  .toolbar,
+  .student-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .panel-header > *,
+  .toolbar > *,
+  .student-head > * {
+    width: 100%;
+  }
+
+  .toolbar button,
+  .panel-header .badge,
+  .student-head .badge {
+    align-self: flex-start;
+  }
+
+  .table-wrap {
+    overflow-x: visible;
+  }
+
+  table,
+  thead,
+  tbody,
+  tr,
+  th,
+  td {
+    display: block;
+    width: 100%;
+  }
+
+  thead {
+    display: none;
+  }
+
+  tbody {
+    display: grid;
+    gap: 12px;
+  }
+
+  tr {
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: var(--panel-strong);
+    box-shadow: 0 10px 24px rgba(30, 44, 56, 0.08);
+  }
+
+  td {
+    display: grid;
+    grid-template-columns: minmax(88px, 104px) minmax(0, 1fr);
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(86, 55, 32, 0.08);
+  }
+
+  td:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+  }
+
+  td::before {
+    content: attr(data-label);
+    color: var(--muted);
+    font-size: 0.84rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .row-actions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 560px) {
+  .page-shell {
+    width: calc(100% - 20px);
+    margin: 16px auto 28px;
+  }
+
+  .hero-copy,
+  .eyebrow,
+  .message,
+  .stat-label,
+  .summary-list,
+  th,
+  td,
+  label,
+  input,
+  textarea,
+  select,
+  button {
+    font-size: 0.95rem;
+  }
+
+  .stats-grid,
+  .summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .form-actions,
+  .row-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .form-actions button,
+  .row-actions button,
+  .toolbar button {
+    width: 100%;
+  }
+
+  td {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  td::before {
+    margin-bottom: 2px;
   }
 }
