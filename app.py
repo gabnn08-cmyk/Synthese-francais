@@ -31,18 +31,18 @@ COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "auto").lower()
 DEMO_MODE = os.environ.get("DEMO_MODE", "false").lower() in {"1", "true", "yes"}
 SITE_NAME = os.environ.get("SITE_NAME", "Synthèse de français")
 SITE_URL = os.environ.get("SITE_URL", "")
-LEGAL_ENTITY_NAME = os.environ.get("LEGAL_ENTITY_NAME", "Etablissement responsable du service")
-LEGAL_ENTITY_STATUS = os.environ.get("LEGAL_ENTITY_STATUS", "Etablissement scolaire")
-LEGAL_ENTITY_ADDRESS = os.environ.get("LEGAL_ENTITY_ADDRESS", "Adresse a completer")
+LEGAL_ENTITY_NAME = os.environ.get("LEGAL_ENTITY_NAME", "Établissement responsable du service")
+LEGAL_ENTITY_STATUS = os.environ.get("LEGAL_ENTITY_STATUS", "Établissement scolaire")
+LEGAL_ENTITY_ADDRESS = os.environ.get("LEGAL_ENTITY_ADDRESS", "Adresse à compléter")
 LEGAL_CONTACT_EMAIL = os.environ.get("LEGAL_CONTACT_EMAIL", "contact@example.fr")
 LEGAL_CONTACT_PHONE = os.environ.get("LEGAL_CONTACT_PHONE", "Téléphone à compléter")
 LEGAL_PUBLICATION_DIRECTOR = os.environ.get("LEGAL_PUBLICATION_DIRECTOR", "Responsable de publication à compléter")
 LEGAL_DPO_CONTACT = os.environ.get("LEGAL_DPO_CONTACT", LEGAL_CONTACT_EMAIL)
 HOSTING_PROVIDER_NAME = os.environ.get("HOSTING_PROVIDER_NAME", "Render LLC")
 HOSTING_PROVIDER_ADDRESS = os.environ.get("HOSTING_PROVIDER_ADDRESS", "https://render.com/")
-HOSTING_PROVIDER_PHONE = os.environ.get("HOSTING_PROVIDER_PHONE", "non communique")
-PRIVACY_ACCOUNT_RETENTION = os.environ.get("PRIVACY_ACCOUNT_RETENTION", "jusqu'a 12 mois apres la derniere activite du compte")
-PRIVACY_EVALUATION_RETENTION = os.environ.get("PRIVACY_EVALUATION_RETENTION", "pendant l'annee scolaire en cours puis selon la politique de l'etablissement")
+HOSTING_PROVIDER_PHONE = os.environ.get("HOSTING_PROVIDER_PHONE", "non communiqué")
+PRIVACY_ACCOUNT_RETENTION = os.environ.get("PRIVACY_ACCOUNT_RETENTION", "jusqu'à 12 mois après la dernière activité du compte")
+PRIVACY_EVALUATION_RETENTION = os.environ.get("PRIVACY_EVALUATION_RETENTION", "pendant l'année scolaire en cours puis selon la politique de l'établissement")
 PRIVACY_SESSION_RETENTION = os.environ.get("PRIVACY_SESSION_RETENTION", f"{SESSION_DAYS} jours maximum")
 ACCESSIBILITY_CONTACT = os.environ.get("ACCESSIBILITY_CONTACT", LEGAL_CONTACT_EMAIL)
 ACCESSIBILITY_MULTIYEAR_PLAN_URL = os.environ.get("ACCESSIBILITY_MULTIYEAR_PLAN_URL", "")
@@ -123,16 +123,16 @@ def render_mentions_legales():
     site_reference = escape_html(SITE_URL) if SITE_URL else "Adresse du site communiquée au déploiement"
     return render_information_page(
         "Mentions légales",
-        "Cette page regroupe les informations d'identification de l'editeur du service, du responsable de publication et de son hebergeur.",
+        "Cette page regroupe les informations d'identification de l'éditeur du service, du responsable de publication et de son hébergeur.",
         [
             (
-                "Editeur du service",
+                "Éditeur du service",
                 [
                     f"<strong>Nom de l'organisme :</strong> {escape_html(LEGAL_ENTITY_NAME)}",
                     f"<strong>Statut :</strong> {escape_html(LEGAL_ENTITY_STATUS)}",
                     f"<strong>Adresse :</strong> {escape_html(LEGAL_ENTITY_ADDRESS)}",
                     f"<strong>Courriel :</strong> {format_contact_link(LEGAL_CONTACT_EMAIL)}",
-                    f"<strong>Telephone :</strong> {escape_html(LEGAL_CONTACT_PHONE)}",
+                    f"<strong>Téléphone :</strong> {escape_html(LEGAL_CONTACT_PHONE)}",
                     f"<strong>Adresse du site :</strong> {site_reference}",
                 ],
             ),
@@ -141,18 +141,18 @@ def render_mentions_legales():
                 [f"<strong>Responsable de publication :</strong> {escape_html(LEGAL_PUBLICATION_DIRECTOR)}"],
             ),
             (
-                "Hebergement",
+                "Hébergement",
                 [
-                    f"<strong>Hebergeur :</strong> {escape_html(HOSTING_PROVIDER_NAME)}",
+                    f"<strong>Hébergeur :</strong> {escape_html(HOSTING_PROVIDER_NAME)}",
                     f"<strong>Adresse :</strong> {escape_html(HOSTING_PROVIDER_ADDRESS)}",
-                    f"<strong>Telephone :</strong> {escape_html(HOSTING_PROVIDER_PHONE)}",
+                    f"<strong>Téléphone :</strong> {escape_html(HOSTING_PROVIDER_PHONE)}",
                 ],
             ),
             (
-                "Propriete intellectuelle",
+                "Propriété intellectuelle",
                 [
-                    "Les contenus fournis dans ce service sont reserves a un usage pedagogique interne, sauf mention contraire.",
-                    "Toute reutilisation externe des textes, evaluations ou donnees nominatives doit etre autorisee par l'organisme responsable du service.",
+                    "Les contenus fournis dans ce service sont réservés à un usage pédagogique interne, sauf mention contraire.",
+                    "Toute réutilisation externe des textes, évaluations ou données nominatives doit être autorisée par l'organisme responsable du service.",
                 ],
             ),
         ],
@@ -161,63 +161,63 @@ def render_mentions_legales():
 
 def render_confidentialite():
     return render_information_page(
-        "Politique de confidentialite",
-        "Le service traite des donnees personnelles d'eleves et de membres de l'equipe pedagogique pour permettre l'authentification, la saisie d'evaluations et la consultation de syntheses.",
+        "Politique de confidentialité",
+        "Le service traite des données personnelles d'élèves et de membres de l'équipe pédagogique pour permettre l'authentification, la saisie d'évaluations et la consultation de synthèses.",
         [
             (
                 "Responsable du traitement",
                 [
-                    f"Le responsable du traitement est <strong>{escape_html(LEGAL_ENTITY_NAME)}</strong>, joignable a l'adresse {format_contact_link(LEGAL_CONTACT_EMAIL)}.",
-                    f"Pour toute question relative a la protection des donnees, vous pouvez contacter le point de contact RGPD a l'adresse {format_contact_link(LEGAL_DPO_CONTACT)}.",
+                    f"Le responsable du traitement est <strong>{escape_html(LEGAL_ENTITY_NAME)}</strong>, joignable à l'adresse {format_contact_link(LEGAL_CONTACT_EMAIL)}.",
+                    f"Pour toute question relative à la protection des données, vous pouvez contacter le point de contact RGPD à l'adresse {format_contact_link(LEGAL_DPO_CONTACT)}.",
                 ],
             ),
             (
-                "Donnees traitees",
+                "Données traitées",
                 [
-                    "Le service traite les donnees d'identification du compte, les mots de passe sous forme hachee, les donnees de session techniques, ainsi que les evaluations pedagogiques saisies dans l'application.",
+                    "Le service traite les données d'identification du compte, les mots de passe sous forme hachée, les données de session techniques, ainsi que les évaluations pédagogiques saisies.",
                 ],
             ),
             (
-                "Finalites et bases legales",
+                "Finalités et bases légales",
                 [
-                    "Les donnees sont traitees pour creer les comptes, authentifier les utilisateurs, permettre la saisie et la consultation des evaluations, ainsi que produire des syntheses pedagogiques.",
-                    "La base legale est l'execution d'une mission d'interet public ou l'interet legitime de l'organisme gestionnaire, selon le cadre d'utilisation effectif du service dans l'etablissement.",
+                    "Les données sont traitées pour créer les comptes, authentifier les utilisateurs, permettre la saisie et la consultation des évaluations, ainsi que produire des synthèses pédagogiques.",
+                    "La base légale est l'exécution d'une mission d'intérêt public ou l'intérêt légitime de l'organisme gestionnaire, selon le cadre d'utilisation effectif du service dans l'établissement.",
                 ],
             ),
             (
-                "Caractere obligatoire des donnees",
+                "Caractère obligatoire des données",
                 [
-                    "Les informations demandees lors de la creation d'un compte sont necessaires pour ouvrir l'acces au service et rattacher les evaluations au bon eleve.",
-                    "En l'absence de ces informations, le compte ne peut pas etre cree.",
+                    "Les informations demandées lors de la création d'un compte sont nécessaires pour ouvrir l'accès au service et rattacher les évaluations au bon élève.",
+                    "En l'absence de ces informations, le compte ne peut pas être créé.",
                 ],
             ),
             (
                 "Destinataires",
                 [
-                    "Les donnees sont accessibles aux eleves pour leur propre espace, ainsi qu'aux personnels autorises disposant d'un role administrateur ou professeure dans l'application.",
-                    "L'hebergeur et les prestataires techniques agissent, le cas echeant, en qualite de sous-traitants pour la mise a disposition du service.",
+                    "Les données sont accessibles aux élèves pour leur propre espace, ainsi qu'aux personnels autorisés disposant d'un rôle administrateur ou professeure dans l'application.",
+                    "L'hébergeur et les prestataires techniques agissent, le cas échéant, en qualité de sous-traitants pour la mise à disposition du service.",
                 ],
             ),
             (
-                "Durees de conservation",
+                "Durées de conservation",
                 [
-                    f"Les comptes utilisateurs sont conserves {escape_html(PRIVACY_ACCOUNT_RETENTION)}.",
-                    f"Les evaluations sont conservees {escape_html(PRIVACY_EVALUATION_RETENTION)}.",
-                    f"Les sessions d'authentification sont conservees {escape_html(PRIVACY_SESSION_RETENTION)}.",
+                    f"Les comptes utilisateurs sont conservés {escape_html(PRIVACY_ACCOUNT_RETENTION)}.",
+                    f"Les évaluations sont conservées {escape_html(PRIVACY_EVALUATION_RETENTION)}.",
+                    f"Les sessions d'authentification sont conservées {escape_html(PRIVACY_SESSION_RETENTION)}.",
                 ],
             ),
             (
                 "Droits des personnes",
                 [
-                    "Vous disposez d'un droit d'acces, de rectification, d'effacement, de limitation et, selon la base legale applicable, d'un droit d'opposition.",
-                    f"Ces droits peuvent etre exerces en ecrivant a {format_contact_link(LEGAL_DPO_CONTACT)}.",
-                    'Vous pouvez egalement introduire une reclamation aupres de la <a href="https://www.cnil.fr/fr/plaintes" rel="noreferrer" target="_blank">CNIL</a>.',
+                    "Vous disposez d'un droit d'accès, de rectification, d'effacement, de limitation et, selon la base légale applicable, d'un droit d'opposition.",
+                    f"Ces droits peuvent être exercés en écrivant à {format_contact_link(LEGAL_DPO_CONTACT)}.",
+                    'Vous pouvez également introduire une réclamation auprès de la <a href="https://www.cnil.fr/fr/plaintes" rel="noreferrer" target="_blank">CNIL</a>.',
                 ],
             ),
             (
-                "Transferts hors Union europeenne",
+                "Transferts hors Union européenne",
                 [
-                    "Le service est concu pour limiter les transferts hors Union europeenne. En cas d'utilisation d'un prestataire impliquant un transfert, l'information correspondante et les garanties applicables devront etre communiquees sur cette page.",
+                    "Le service est conçu pour limiter les transferts hors Union européenne. En cas d'utilisation d'un prestataire impliquant un transfert, l'information correspondante et les garanties appropriées seront communiquées.",
                 ],
             ),
         ],
@@ -227,27 +227,27 @@ def render_confidentialite():
 def render_cookies():
     return render_information_page(
         "Politique cookies",
-        "Le site utilise uniquement les traceurs strictement nécessaires a son fonctionnement, sauf ajout ulterieur d'outils necessitant un consentement prealable.",
+        "Le site utilise uniquement les traceurs strictement nécessaires à son fonctionnement, sauf ajout ultérieur d'outils nécessitant un consentement préalable.",
         [
             (
                 "Cookie nécessaire",
                 [
-                    f"Un cookie de session d'authentification nomme <code>session_token</code> est déposé pour maintenir la connexion pendant une durée maximale de {SESSION_DAYS} jours.",
-                    "Ce cookie est utilise exclusivement pour l'authentification et la sécurité du service. Il ne sert ni a la publicité ni a la mesure d'audience.",
+                    f"Un cookie de session d'authentification nommé <code>session_token</code> est déposé pour maintenir la connexion pendant une durée maximale de {SESSION_DAYS} jours.",
+                    "Ce cookie est utilisé exclusivement pour l'authentification et la sécurité du service. Il ne sert ni à la publicité ni à la mesure d'audience.",
                 ],
             ),
             (
                 "Absence de traceurs marketing",
                 [
-                    "Aucun cookie publicitaire, aucun traceur de reseau social et aucun outil de mesure d'audience soumis au consentement n'est déposé par défaut.",
-                    "Si de nouveaux traceurs non strictement nécessaires sont ajoutes, un mecanisme de recueil du consentement devra etre mis en place avant leur depot.",
+                    "Aucun cookie publicitaire, aucun traceur de réseau social et aucun outil de mesure d'audience soumis au consentement n'est déposé par défaut.",
+                    "Si de nouveaux traceurs non strictement nécessaires sont ajoutés, un mécanisme de recueil du consentement devra être mis en place avant leur dépôt.",
                 ],
             ),
             (
                 "Gestion des préférences",
                 [
-                    "Comme seuls des traceurs strictement nécessaires sont utilises a ce jour, aucune bannière de consentement n'est affichée.",
-                    f"Pour toute question, vous pouvez écrire a {format_contact_link(LEGAL_CONTACT_EMAIL)}.",
+                    "Comme seuls des traceurs strictement nécessaires sont utilisés à ce jour, aucune bannière de consentement n'est affichée.",
+                    f"Pour toute question, vous pouvez écrire à {format_contact_link(LEGAL_CONTACT_EMAIL)}.",
                 ],
             ),
         ],
@@ -256,44 +256,44 @@ def render_cookies():
 
 def render_accessibilite():
     action_plan = (
-        f'Le schéma pluriannuel de mise en accessibilite est consultable a l\'adresse <a href="{escape_html(ACCESSIBILITY_MULTIYEAR_PLAN_URL)}">{escape_html(ACCESSIBILITY_MULTIYEAR_PLAN_URL)}</a>.'
+        f'Le schéma pluriannuel de mise en accessibilité est consultable à l\'adresse <a href="{escape_html(ACCESSIBILITY_MULTIYEAR_PLAN_URL)}">{escape_html(ACCESSIBILITY_MULTIYEAR_PLAN_URL)}</a>'
         if ACCESSIBILITY_MULTIYEAR_PLAN_URL
-        else "Le schéma pluriannuel de mise en accessibilite n'est pas encore publié sur ce service."
+        else "Le schéma pluriannuel de mise en accessibilité n'est pas encore publié sur ce service."
     )
     return render_information_page(
-        "Accessibilite numerique",
-        "Etat de conformite au RGAA au 27 mai 2026 : non conforme. Aucun audit complet n'a encore permis d'etablir un taux de conformite opposable.",
+        "Accessibilité numérique",
+        "État de conformité au RGAA au 27 mai 2026 : non conforme. Aucun audit complet n'a encore permis d'établir un taux de conformité opposable.",
         [
             (
-                "Declaration de conformite",
+                "Déclaration de conformité",
                 [
-                    "Cette declaration s'applique au service web de synthese des evaluations de francais.",
-                    "Faute d'audit complet, le service est actuellement declare non conforme au Referentiel general d'amelioration de l'accessibilite.",
+                    "Cette déclaration s'applique au service web de synthèse des évaluations de français.",
+                    "Faute d'audit complet, le service est actuellement déclaré non conforme au Référentiel général d'amélioration de l'accessibilité.",
                 ],
             ),
             (
-                "Contenus non accessibles identifies a ce stade",
+                "Contenus non accessibles identifiés à ce stade",
                 [
-                    "Certaines restitutions dynamiques JavaScript n'ont pas encore fait l'objet d'une validation complete avec technologies d'assistance.",
-                    "Les parcours de tableau et certains messages de statut doivent encore etre testes et, si necessaire, ajustes apres audit.",
+                    "Certaines restitutions dynamiques JavaScript n'ont pas encore fait l'objet d'une validation complète avec technologies d'assistance.",
+                    "Les parcours de tableau et certains messages de statut doivent encore être testés et, si nécessaire, ajustés après audit.",
                 ],
             ),
             (
-                "Ameliorations deja mises en place",
+                "Améliorations déjà mises en place",
                 [
-                    "Le site est en francais, dispose d'un lien d'evitement, d'une navigation visible vers les pages reglementaires et de messages d'erreur prevus pour etre annonces aux technologies d'assistance.",
+                    "Le site est en français, dispose d'un lien d'évitement, d'une navigation visible vers les pages réglementaires et de messages d'erreur prévus pour être annoncés aux technologies d'assistance.",
                 ],
             ),
             (
                 "Retour d'information et contact",
                 [
-                    f"Si vous ne parvenez pas a acceder a un contenu ou a un service, vous pouvez contacter {format_contact_link(ACCESSIBILITY_CONTACT)} pour etre oriente vers une alternative accessible ou obtenir le contenu sous une autre forme.",
+                    f"Si vous ne parvenez pas à accéder à un contenu ou à un service, vous pouvez contacter {format_contact_link(ACCESSIBILITY_CONTACT)} pour être orienté vers une alternative accessible.",
                 ],
             ),
             (
                 "Voies de recours",
                 [
-                    "Si vous constatez un defaut d'accessibilite vous empechant d'acceder a un contenu et que vous ne recevez pas de reponse satisfaisante, vous pouvez saisir le Defenseur des droits.",
+                    "Si vous constatez un défaut d'accessibilité vous empêchant d'accéder à un contenu et que vous ne recevez pas de réponse satisfaisante, vous pouvez saisir le Défenseur des droits.",
                     action_plan,
                 ],
             ),
