@@ -1,12 +1,12 @@
 # Synthèse des évaluations de français
 
-Application web légère pour une classe: les élèves créent un compte, saisissent leurs évaluations de français, consultent leur synthèse personnelle, et la professeure ou l'administrateur voit la classe complète.
+Application web légère pour une classe: les élèves créent un compte, saisissent leurs évaluations de français, consultent leur synthèse personnelle, et la professeure ou l'administrateur voient la classe complète.
 
 ## Ce qui est prêt pour un usage réel
 
 - comptes élèves indépendants avec inscription autonome ;
 - comptes administrateur et professeure distincts, créés au démarrage via variables d'environnement ;
-- mots de passe hashes avec PBKDF2 ;
+- mots de passe hachés avec PBKDF2 ;
 - sessions stockées en base, persistantes entre redémarrages ;
 - base PostgreSQL Supabase via `DATABASE_URL` ;
 - schéma PostgreSQL privé `app_private` pour éviter l'exposition REST/GraphQL du schéma `public` ;
@@ -88,7 +88,7 @@ TEACHER_FULL_NAME=Professeur de français
 TEACHER_PASSWORD=autre-mot-de-passe-fort
 ```
 
-L'application crée automatiquement le schéma et les tables au démarrage. Si tu préfères les créer manuellement, coller [supabase/schema.sql](C:/Users/gabri/Documents/New%20project/supabase/schema.sql) dans le SQL Editor de Supabase.
+L'application crée automatiquement le schéma et les tables au démarrage. Si tu préfères les créer manuellement, coller [supabase/schema.sql](supabase/schema.sql).
 
 ## Migrer les données SQLite existantes
 
@@ -111,7 +111,7 @@ python migrate_sqlite_to_postgres.py
 ## Variables importantes
 
 - `DATABASE_URL`: URL de connexion PostgreSQL Supabase, obligatoire
-- `DATABASE_SSLMODE`: mode SSL, `require` recommande pour Supabase
+- `DATABASE_SSLMODE`: mode SSL, `require` recommandé pour Supabase
 - `DATABASE_SCHEMA`: schéma utilisé par l'application, `app_private` recommandé sur Supabase
 - `ADMIN_USERNAME`: identifiant administrateur, par défaut `admin`
 - `ADMIN_PASSWORD`: mot de passe initial du compte administrateur
@@ -120,17 +120,17 @@ python migrate_sqlite_to_postgres.py
 - `TEACHER_PASSWORD`: mot de passe initial du compte professeure, par défaut identique à `ADMIN_PASSWORD` si absent
 - `TEACHER_FULL_NAME`: nom affiché pour le compte professeure
 - `COOKIE_SECURE`: `true` en production HTTPS, `false` en local si besoin
-- `DEMO_MODE`: `true` uniquement pour creer les comptes de demonstration
-- `PROTOTYPE_DB_PATH`: chemin de l'ancienne base SQLite, utilise seulement par le script de migration
-- `SITE_NAME`, `SITE_URL`: nom public du service et URL de deploiement
-- `LEGAL_*`: informations d'editeur, de contact, de responsable de publication et de point RGPD affichees sur les pages legales
-- `HOSTING_PROVIDER_*`: informations d'hebergement affichees dans les mentions legales
-- `PRIVACY_*`: durees de conservation affichees dans la politique de confidentialite
-- `ACCESSIBILITY_CONTACT`, `ACCESSIBILITY_MULTIYEAR_PLAN_URL`: contact et lien de reference pour la page accessibilite
+- `DEMO_MODE`: `true` uniquement pour créer les comptes de démonstration
+- `PROTOTYPE_DB_PATH`: chemin de l'ancienne base SQLite, utilisé seulement par le script de migration
+- `SITE_NAME`, `SITE_URL`: nom public du service et URL de déploiement
+- `LEGAL_*`: informations d'éditeur, de contact, de responsable de publication et de point RGPD affichées sur les pages légales
+- `HOSTING_PROVIDER_*`: informations d'hébergement affichées dans les mentions légales
+- `PRIVACY_*`: durées de conservation affichées dans la politique de confidentialité
+- `ACCESSIBILITY_CONTACT`, `ACCESSIBILITY_MULTIYEAR_PLAN_URL`: contact et lien de référence pour la page accessibilité
 
 ## Déploiement Render avec Supabase
 
-Le fichier [render.yaml](C:/Users/gabri/Documents/New%20project/render.yaml) crée uniquement le service web. La base est fournie par Supabase.
+Le fichier [render.yaml](render.yaml) crée uniquement le service web. La base est fournie par Supabase.
 
 Étapes:
 
