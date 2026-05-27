@@ -269,6 +269,21 @@ def list_evaluations(student_id=None):
     return [row_to_dict(row) for row in rows]
 
 
+def get_evaluation_by_id(evaluation_id):
+    conn = get_db()
+    row = conn.execute(
+        """
+        SELECT e.*, u.full_name AS student_name
+        FROM evaluations e
+        JOIN users u ON u.id = e.student_id
+        WHERE e.id = %s
+        """,
+        (evaluation_id,),
+    ).fetchone()
+    conn.close()
+    return row_to_dict(row) if row else None
+
+
 def mean(values):
     return round(sum(values) / len(values), 2) if values else None
 
@@ -317,9 +332,9 @@ def summarize_student(student, evaluations):
                 "oral_average": None,
                 "trimester_averages": empty_trimester_averages,
             },
-            "strengths": ["Aucune donnee pour le moment."],
-            "weaknesses": ["Aucune faiblesse detectee sans evaluations."],
-            "improvements": ["Saisir les premieres evaluations pour obtenir une synthese."],
+            "strengths": ["Aucune donnee exploitable pour le moment."],
+            "weaknesses": ["Aucun point de vigilance ne peut etre etabli sans evaluations."],
+            "improvements": ["Saisir les premieres evaluations pour obtenir une synthese pedagogique."],
             "general_opinion": "Synthese indisponible tant qu'aucune evaluation n'a ete ajoutee.",
         }
 
@@ -338,34 +353,34 @@ def summarize_student(student, evaluations):
     }
 
     if global_average is not None and global_average >= 13:
-        strengths.append("Resultats globalement solides en francais.")
+        strengths.append("Resultats globalement solides en francais, dans la perspective des exigences du bac.")
     elif global_average is not None and global_average < 10:
-        weaknesses.append("Moyenne generale fragile sur les evaluations saisies.")
+        weaknesses.append("Les resultats appellent une reprise methodique des attendus de Premiere generale.")
 
     if written_average is not None:
         if written_average >= 12:
-            strengths.append("Bonne maitrise des evaluations ecrites.")
+            strengths.append("Bonne maitrise des exercices ecrits attendus au bac de francais.")
         elif written_average < 10:
-            weaknesses.append("Des difficultes apparaissent a l'ecrit.")
-            improvements.append("Travailler la methode de redaction et l'organisation des idees.")
+            weaknesses.append("La methode des exercices ecrits doit etre reprise avec rigueur.")
+            improvements.append("Travailler la redaction, l'organisation des idees et la precision des references.")
 
     if oral_average is not None:
         if oral_average >= 14:
-            strengths.append("Aisance remarquable lors des prises de parole.")
+            strengths.append("Aisance remarquable lors des prises de parole, precieuse pour l'oral du bac.")
         elif oral_average < 10:
-            weaknesses.append("Les performances orales restent a consolider.")
-            improvements.append("S'entrainer a l'oral avec des prises de parole plus regulieres.")
+            weaknesses.append("L'oral reste a consolider pour atteindre les exigences de l'epreuve anticipee.")
+            improvements.append("S'entrainer a l'oral avec des prises de parole structurees et regulieres.")
 
     for evaluation in evaluations:
         strengths.extend(detect_positive_points(evaluation["appreciation"]))
         improvements.extend(detect_improvement_points(evaluation["appreciation"]))
 
     if not strengths:
-        strengths.append("Des points positifs existent mais demandent encore a se confirmer.")
+        strengths.append("Quelques acquis sont perceptibles mais doivent encore se confirmer.")
     if not weaknesses:
-        weaknesses.append("Pas de faiblesse majeure recurrente sur les donnees actuelles.")
+        weaknesses.append("Aucun point de vigilance majeur recurrent sur les donnees actuelles.")
     if not improvements:
-        improvements.append("Poursuivre les efforts de regularite et de precision.")
+        improvements.append("Poursuivre les efforts de regularite, de precision et de methode.")
 
     strengths = list(dict.fromkeys(strengths))[:4]
     weaknesses = list(dict.fromkeys(weaknesses))[:4]
@@ -374,13 +389,13 @@ def summarize_student(student, evaluations):
     if global_average is None:
         opinion = "Les donnees sont encore insuffisantes pour une tendance generale."
     elif global_average >= 15:
-        opinion = "Avis general tres positif: eleve autonome, regulier et convaincant."
+        opinion = "Avis de professeure agregee de francais au lycee Saint-Louis de Gonzague: excellent ensemble, autonome, regulier et convaincant."
     elif global_average >= 12:
-        opinion = "Avis general positif: ensemble serieux avec une progression encourageante."
+        opinion = "Avis exigeant et positif, dans le cadre du lycee Saint-Louis de Gonzague: travail serieux, acquis solides et progression encourageante pour le bac."
     elif global_average >= 10:
-        opinion = "Avis general nuance: bases presentes, mais une progression reste attendue."
+        opinion = "Avis nuance, au niveau d'exigence du lycee Saint-Louis de Gonzague: les bases sont presentes, mais les attendus de Premiere generale demandent davantage de rigueur."
     else:
-        opinion = "Avis general reserve: un accompagnement plus soutenu semble necessaire."
+        opinion = "Avis exigeant, au niveau d'une Premiere generale du lycee Saint-Louis de Gonzague: les attendus ne sont pas encore suffisamment stabilises; priorite a la methode, a la precision et a la regularite."
 
     return {
         "student": student,
@@ -441,13 +456,13 @@ def public_class_summary():
     if class_average is None:
         general_opinion = "La synthese de classe sera plus parlante apres quelques evaluations supplementaires."
     elif class_average >= 14:
-        general_opinion = "La dynamique de classe est tres positive avec un niveau d'ensemble solide."
+        general_opinion = "La dynamique de classe est tres positive, avec un niveau d'ensemble solide pour preparer le bac de francais au lycee Saint-Louis de Gonzague."
     elif class_average >= 12:
-        general_opinion = "La classe montre des acquis encourageants et une base de travail serieuse."
+        general_opinion = "La classe montre des acquis encourageants et une base de travail serieuse, conforme a l'ambition d'une Premiere generale au lycee Saint-Louis de Gonzague."
     elif class_average >= 10:
-        general_opinion = "Le niveau de classe reste heterogene, avec une marge de progression identifiable."
+        general_opinion = "Le niveau de classe reste heterogene; la progression devra porter sur la methode, la precision et la qualite de l'expression."
     else:
-        general_opinion = "La classe semble avoir besoin d'un accompagnement plus soutenu sur plusieurs competences."
+        general_opinion = "La classe doit consolider plusieurs competences essentielles pour aborder le bac avec davantage de maitrise."
 
     return {
         "students_count": summary["students_count"],
@@ -472,6 +487,42 @@ def parse_body(handler):
 def clean_text(value, max_length):
     text = str(value or "").strip()
     return text[:max_length]
+
+
+def validate_evaluation_payload(payload):
+    required_fields = [
+        "title",
+        "evaluation_type",
+        "trimester",
+        "subject_area",
+        "evaluation_date",
+        "score",
+        "max_score",
+        "appreciation",
+    ]
+    missing = [field for field in required_fields if payload.get(field) in (None, "")]
+    if missing:
+        raise ValueError(f"Champs manquants: {', '.join(missing)}.")
+    evaluation_type = payload["evaluation_type"]
+    if evaluation_type not in {"ecrit", "oral"}:
+        raise ValueError("Type d'evaluation invalide.")
+    trimester = int(payload["trimester"])
+    if trimester not in {1, 2, 3}:
+        raise ValueError("Trimestre invalide.")
+    score = float(payload["score"])
+    max_score = float(payload["max_score"])
+    if score < 0 or max_score <= 0 or score > max_score:
+        raise ValueError("La note doit etre comprise entre 0 et le bareme.")
+    return {
+        "title": clean_text(payload["title"], 160),
+        "evaluation_type": evaluation_type,
+        "trimester": trimester,
+        "subject_area": clean_text(payload["subject_area"], 120),
+        "evaluation_date": clean_text(payload["evaluation_date"], 20),
+        "score": score,
+        "max_score": max_score,
+        "appreciation": clean_text(payload["appreciation"], 1200),
+    }
 
 
 def is_secure_request(handler):
@@ -617,6 +668,26 @@ class PrototypeHandler(BaseHTTPRequestHandler):
             return self._send_json({"error": "Identifiant deja utilise."}, HTTPStatus.CONFLICT)
         self.send_error(HTTPStatus.NOT_FOUND)
 
+    def do_PUT(self):
+        parsed = urlparse(self.path)
+        try:
+            if parsed.path.startswith("/api/evaluations/"):
+                evaluation_id = int(parsed.path.rsplit("/", 1)[-1])
+                return self.handle_update_evaluation(evaluation_id)
+        except ValueError as exc:
+            return self._send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+        self.send_error(HTTPStatus.NOT_FOUND)
+
+    def do_DELETE(self):
+        parsed = urlparse(self.path)
+        try:
+            if parsed.path.startswith("/api/evaluations/"):
+                evaluation_id = int(parsed.path.rsplit("/", 1)[-1])
+                return self.handle_delete_evaluation(evaluation_id)
+        except ValueError as exc:
+            return self._send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+        self.send_error(HTTPStatus.NOT_FOUND)
+
     def handle_register(self):
         payload = parse_body(self)
         username = clean_text(payload.get("username"), 80).lower()
@@ -686,29 +757,7 @@ class PrototypeHandler(BaseHTTPRequestHandler):
             return
         payload = parse_body(self)
         student_id = int(payload.get("student_id")) if user["role"] in STAFF_ROLES else user["id"]
-        required_fields = [
-            "title",
-            "evaluation_type",
-            "trimester",
-            "subject_area",
-            "evaluation_date",
-            "score",
-            "max_score",
-            "appreciation",
-        ]
-        missing = [field for field in required_fields if payload.get(field) in (None, "")]
-        if missing:
-            raise ValueError(f"Champs manquants: {', '.join(missing)}.")
-        evaluation_type = payload["evaluation_type"]
-        if evaluation_type not in {"ecrit", "oral"}:
-            raise ValueError("Type d'evaluation invalide.")
-        trimester = int(payload["trimester"])
-        if trimester not in {1, 2, 3}:
-            raise ValueError("Trimestre invalide.")
-        score = float(payload["score"])
-        max_score = float(payload["max_score"])
-        if score < 0 or max_score <= 0 or score > max_score:
-            raise ValueError("La note doit etre comprise entre 0 et le bareme.")
+        data = validate_evaluation_payload(payload)
         student = get_user_by_id(student_id)
         if not student or student["role"] != "student":
             raise ValueError("Eleve introuvable.")
@@ -725,14 +774,14 @@ class PrototypeHandler(BaseHTTPRequestHandler):
                     """,
                     (
                         student_id,
-                        clean_text(payload["title"], 160),
-                        evaluation_type,
-                        trimester,
-                        clean_text(payload["subject_area"], 120),
-                        clean_text(payload["evaluation_date"], 20),
-                        score,
-                        max_score,
-                        clean_text(payload["appreciation"], 1200),
+                        data["title"],
+                        data["evaluation_type"],
+                        data["trimester"],
+                        data["subject_area"],
+                        data["evaluation_date"],
+                        data["score"],
+                        data["max_score"],
+                        data["appreciation"],
                         iso_now()
                     ),
                 )
@@ -743,6 +792,68 @@ class PrototypeHandler(BaseHTTPRequestHandler):
             finally:
                 conn.close()
         return self._send_json({"success": True}, HTTPStatus.CREATED)
+
+    def handle_update_evaluation(self, evaluation_id):
+        user = self._require_auth()
+        if not user:
+            return
+        evaluation = get_evaluation_by_id(evaluation_id)
+        if not evaluation:
+            return self._send_json({"error": "Evaluation introuvable."}, HTTPStatus.NOT_FOUND)
+        if user["role"] not in STAFF_ROLES and evaluation["student_id"] != user["id"]:
+            return self._send_json({"error": "Acces non autorise."}, HTTPStatus.FORBIDDEN)
+        data = validate_evaluation_payload(parse_body(self))
+        with WRITE_LOCK:
+            conn = get_db()
+            try:
+                conn.execute("BEGIN")
+                conn.execute(
+                    """
+                    UPDATE evaluations
+                    SET title = %s,
+                        evaluation_type = %s,
+                        trimester = %s,
+                        subject_area = %s,
+                        evaluation_date = %s,
+                        score = %s,
+                        max_score = %s,
+                        appreciation = %s
+                    WHERE id = %s
+                    """,
+                    (
+                        data["title"],
+                        data["evaluation_type"],
+                        data["trimester"],
+                        data["subject_area"],
+                        data["evaluation_date"],
+                        data["score"],
+                        data["max_score"],
+                        data["appreciation"],
+                        evaluation_id,
+                    ),
+                )
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                conn.close()
+        return self._send_json({"success": True})
+
+    def handle_delete_evaluation(self, evaluation_id):
+        user = self._require_auth()
+        if not user:
+            return
+        evaluation = get_evaluation_by_id(evaluation_id)
+        if not evaluation:
+            return self._send_json({"error": "Evaluation introuvable."}, HTTPStatus.NOT_FOUND)
+        if user["role"] not in STAFF_ROLES and evaluation["student_id"] != user["id"]:
+            return self._send_json({"error": "Acces non autorise."}, HTTPStatus.FORBIDDEN)
+        with WRITE_LOCK:
+            conn = get_db()
+            conn.execute("DELETE FROM evaluations WHERE id = %s", (evaluation_id,))
+            conn.close()
+        return self._send_json({"success": True})
 
 
 if __name__ == "__main__":
